@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
@@ -88,8 +88,7 @@ class Pipeline:
         copied: dict[str, Path] = {}
 
         def pick_src(service_mode: str) -> Path:
-            inner = service_mode
-            src = run_dir / service_mode / "top1" / inner
+            src = run_dir / service_mode / "top1"
             if not src.exists():
                 raise FileNotFoundError(f"Expected path not found for service_mode '{service_mode}': {src}")
 

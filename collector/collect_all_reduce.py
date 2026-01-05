@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -48,7 +48,11 @@ def import_trtllm():
     """Import TensorRT-LLM modules"""
     try:
         import tensorrt_llm as tllm
-        from cuda import cudart
+
+        try:
+            from cuda.bindings import runtime as cudart
+        except:
+            from cuda import cudart
         from tensorrt_llm import Mapping
         from tensorrt_llm._torch.distributed import AllReduce, AllReduceFusionOp
         from tensorrt_llm._torch.distributed import AllReduceParams as TorchAllReduceParams

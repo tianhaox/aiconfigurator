@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
@@ -1159,10 +1159,10 @@ class EventFn:
         else:
             if backend_name == "sglang":
                 if enable_wideep:
-                    gemm_quant_mode_choices = sorted(supported_quant_mode["wideep_context_mlp"])
+                    gemm_quant_mode_choices = sorted(supported_quant_mode["gemm"])
                     kvcache_quant_mode_choices = sorted(supported_quant_mode["wideep_generation_mla"])
                     fmha_quant_mode_choices = sorted(supported_quant_mode["wideep_context_mla"])
-                    moe_quant_mode_choices = sorted(supported_quant_mode["wideep_context_mlp"])
+                    moe_quant_mode_choices = sorted(supported_quant_mode["wideep_context_moe"])
                 else:
                     gemm_quant_mode_choices = sorted(supported_quant_mode["gemm"])
                     kvcache_quant_mode_choices = sorted(supported_quant_mode["generation_mla"])

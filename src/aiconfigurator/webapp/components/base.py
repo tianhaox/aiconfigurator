@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 import gradio as gr
@@ -79,9 +79,6 @@ def create_system_config(app_config, gpu_config=False):
                         label="GPUs per node",
                         value=8,
                         interactive=True,
-                    ),
-                    "gpu_cost_per_hour": gr.Number(
-                        label="GPU cost per hour", value="", interactive=True, optional=True
                     ),
                 }
         else:

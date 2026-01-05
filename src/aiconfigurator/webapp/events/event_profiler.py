@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -32,7 +32,6 @@ def setup_profiling_events(components):
     version = model_system_components["version"]
     min_gpu_per_engine = model_system_components["min_gpu_per_engine"]
     max_gpu_per_engine = model_system_components["max_gpu_per_engine"]
-    gpu_cost_per_hour = model_system_components["gpu_cost_per_hour"]
 
     isl = runtime_config_components["isl"]
     osl = runtime_config_components["osl"]
@@ -56,7 +55,6 @@ def setup_profiling_events(components):
         version,
         min_gpu_per_engine,
         max_gpu_per_engine,
-        gpu_cost_per_hour,
         isl,
         osl,
         ttft,

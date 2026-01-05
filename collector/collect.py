@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 import contextlib
 import warnings
@@ -387,6 +387,7 @@ def collect_sglang(num_processes: int, ops: list[str] | None = None):
         return
 
     # Define collection modules - each test type as separate entry
+    # Non-wideep collections (support multi-process parallel)
     collections = [
         # GEMM collection
         {
@@ -450,7 +451,54 @@ def collect_sglang(num_processes: int, ops: list[str] | None = None):
             "run_func": "run_attention_torch",
         },
     ]
+
+    # Wideep collections - require single process due to NCCL/distributed init conflicts
+    wideep_collections = [
+        {
+            "name": "sglang",
+            "type": "wideep_mla_context",
+            "module": "collector.sglang.collect_wideep_attn",
+            "get_func": "get_wideep_mla_context_test_cases",
+            "run_func": "run_wideep_mla_context",
+        },
+        {
+            "name": "sglang",
+            "type": "wideep_mla_generation",
+            "module": "collector.sglang.collect_wideep_attn",
+            "get_func": "get_wideep_mla_generation_test_cases",
+            "run_func": "run_wideep_mla_generation",
+        },
+        {
+            "name": "sglang",
+            "type": "wideep_mlp_context",
+            "module": "collector.sglang.collect_wideep_mlp",
+            "get_func": "get_wideep_mlp_context_test_cases",
+            "run_func": "run_wideep_mlp_context",
+        },
+        {
+            "name": "sglang",
+            "type": "wideep_mlp_generation",
+            "module": "collector.sglang.collect_wideep_mlp",
+            "get_func": "get_wideep_mlp_generation_test_cases",
+            "run_func": "run_wideep_mlp_generation",
+        },
+        {
+            "name": "sglang",
+            "type": "wideep_moe",
+            "module": "collector.sglang.collect_wideep_deepep_moe",
+            "get_func": "get_wideep_moe_test_cases",
+            "run_func": "run_wideep_moe",
+        },
+    ]
+
+    # Run non-wideep collections with multi-process
     all_errors = collect_ops(num_processes, collections, ops, version)
+
+    # Run wideep collections - now supports multi-process with proper port isolation
+    if ops is None or any(c["type"] in ops for c in wideep_collections):
+        logger.info(f"Running wideep collections with {num_processes} processes")
+        wideep_errors = collect_ops(num_processes, wideep_collections, ops, version)
+        all_errors.extend(wideep_errors)
 
     generate_collection_summary(all_errors, "sglang", version)
 
@@ -500,6 +548,20 @@ def collect_vllm(num_processes: int, ops: list[str] | None = None):
             "module": "collector.vllm.collect_moe",
             "get_func": "get_moe_test_cases",
             "run_func": "run_moe_torch",
+        },
+        {
+            "name": "vllm",
+            "type": "mla_context",
+            "module": "collector.vllm.collect_mla",
+            "get_func": "get_context_mla_test_cases",
+            "run_func": "run_attention_torch",
+        },
+        {
+            "name": "vllm",
+            "type": "mla_generation",
+            "module": "collector.vllm.collect_mla",
+            "get_func": "get_generation_mla_test_cases",
+            "run_func": "run_attention_torch",
         },
     ]
 
@@ -683,6 +745,11 @@ def main():
             "mla_bmm_gen_pre",
             "mla_bmm_gen_post",
             "moe",
+            "wideep_mla_context",
+            "wideep_mla_generation",
+            "wideep_mlp_context",
+            "wideep_mlp_generation",
+            "wideep_moe",
         ],
         help="Run only specified collection items. Leave empty to run all. "
         "Available ops vary by backend - see backend-specific collectors for details.",
