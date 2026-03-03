@@ -571,6 +571,21 @@ def collect_vllm(num_processes: int, ops: list[str] | None = None):
             "get_func": "get_generation_mla_test_cases",
             "run_func": "run_attention_torch",
         },
+        # Module-level attention collection (MLA/DSA auto-separated by collector)
+        {
+            "name": "vllm",
+            "type": "mla_context_module",
+            "module": "collector.vllm.collect_mla_module",
+            "get_func": "get_context_module_test_cases",
+            "run_func": "run_mla_module_worker",
+        },
+        {
+            "name": "vllm",
+            "type": "mla_generation_module",
+            "module": "collector.vllm.collect_mla_module",
+            "get_func": "get_generation_module_test_cases",
+            "run_func": "run_mla_module_worker",
+        },
     ]
 
     all_errors = collect_ops(num_processes, collections, ops, version)
@@ -786,6 +801,8 @@ def main():
             "trtllm_moe_wideep",  # WideEP MoE compute (includes all 3 EPLB modes)
             "wideep_moe",  # TensorRT-LLM WideEP MoE computation (single GPU) - from aic
             "mamba2",
+            "mla_context_module",
+            "mla_generation_module",
             "wideep_mla_context",
             "wideep_mla_generation",
             "wideep_mlp_context",
