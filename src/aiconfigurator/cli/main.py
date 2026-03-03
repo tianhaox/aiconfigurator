@@ -145,6 +145,13 @@ def _add_default_mode_arguments(parser):
         help="Optional end-to-end request latency target (ms). Enables request-latency optimization mode.",
     )
     parser.add_argument("--prefix", type=int, default=0, help="Prefix cache length. Default to 0.")
+    parser.add_argument(
+        "--enable-chunked-prefill",
+        action="store_true",
+        default=False,
+        help="Enable chunked prefill for finer-grained context token sweep during optimization. "
+        "When off (default), context token stride is aligned to ISL for faster sweeping.",
+    )
 
 
 def _add_experiments_mode_arguments(parser):
@@ -576,6 +583,7 @@ def build_default_task_configs(
     tpot: float = 30.0,
     request_latency: float | None = None,
     prefix: int = 0,
+    enable_chunked_prefill: bool = False,
 ) -> dict[str, TaskConfig]:
     """Build agg and disagg task configs for default mode comparison.
 
@@ -594,6 +602,7 @@ def build_default_task_configs(
         tpot: Time per output token target in ms.
         request_latency: Optional end-to-end request latency target (ms).
         prefix: Prefix cache length.
+        enable_chunked_prefill: Whether to enable chunked prefill for finer context token sweep.
 
     Returns:
         Dict with TaskConfig objects. When backend='auto', returns 6 configs
@@ -621,6 +630,7 @@ def build_default_task_configs(
         "request_latency": request_latency,
         "prefix": prefix,
         "database_mode": database_mode,
+        "enable_chunked_prefill": enable_chunked_prefill,
     }
 
     task_configs: dict[str, TaskConfig] = {}
@@ -663,6 +673,7 @@ _EXPERIMENT_RESERVED_KEYS = {
     "tpot",
     "request_latency",
     "enable_wideep",
+    "enable_chunked_prefill",
     "total_gpus",
     "database_mode",
 }
@@ -796,6 +807,8 @@ def build_experiment_task_configs(
 
         if "enable_wideep" in exp_config:
             task_kwargs["enable_wideep"] = exp_config["enable_wideep"]
+        if "enable_chunked_prefill" in exp_config:
+            task_kwargs["enable_chunked_prefill"] = exp_config["enable_chunked_prefill"]
         if "database_mode" in exp_config:
             task_kwargs["database_mode"] = exp_config["database_mode"]
 
@@ -1332,6 +1345,7 @@ def main(args):
             tpot=args.tpot,
             request_latency=args.request_latency,
             prefix=args.prefix,
+            enable_chunked_prefill=args.enable_chunked_prefill,
         )
     elif args.mode == "exp":
         try:
