@@ -23,7 +23,9 @@ from sglang.srt.layers.moe.fused_moe_triton.fused_moe_triton_config import (
     get_default_config,
     get_moe_configs,
 )
+from sglang.srt.layers.moe.moe_runner.base import MoeRunnerConfig
 from sglang.srt.layers.moe.topk import StandardTopKOutput, TopKConfig, select_experts
+from sglang.srt.environ import envs
 from sglang.srt.utils import is_hip
 
 try:
@@ -413,6 +415,10 @@ def benchmark_config(
         def run_op(i):
             from sglang.srt.layers.moe.fused_moe_triton import override_config
 
+            moe_runner_config = MoeRunnerConfig(
+                swiglu_limit=10 if envs.SGLANG_DSV4_2604_SUBMODE.get() == "2604B" else None
+            )
+
             if workloads is None:
                 input_gating = gating_output[i % num_iters]
                 new_topk = select_experts(x, input_gating, TopKConfig(top_k=topk))
@@ -431,6 +437,7 @@ def benchmark_config(
                     w1,
                     w2,
                     current_topk_output,
+                    moe_runner_config=moe_runner_config,
                     use_fp8_w8a8=use_fp8_w8a8,
                     use_int8_w8a8=use_int8_w8a8,
                     use_int8_w8a16=use_int8_w8a16,

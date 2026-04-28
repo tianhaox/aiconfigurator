@@ -96,6 +96,13 @@ REGISTRY: list[OpEntry] = [
         perf_filename=PerfFile.DSA_GENERATION_MODULE,
     ),
     OpEntry(
+        op="dsv4_mhc_module",
+        module="collector.sglang.collect_dsv4_mhc_module",
+        get_func="get_dsv4_mhc_module_test_cases",
+        run_func="run_dsv4_mhc_module_worker",
+        perf_filename=PerfFile.DSV4_MHC_MODULE,
+    ),
+    OpEntry(
         op="wideep_moe",
         module="collector.sglang.collect_wideep_deepep_moe",
         get_func="get_wideep_moe_test_cases",
