@@ -30,6 +30,11 @@ ROWS: list[tuple[int, int, int, float]] = [
 ]
 
 
+# Stamp parquet kv-metadata with the same db_id MockLLMModel expects, so
+# Engine.check_db_compat passes for matched pairs and fails for swapped ones.
+DB_ID = "mock_h100"
+
+
 def main(out_path: Path | None = None) -> Path:
     out_path = out_path or Path(__file__).parent / "gemm_perf.parquet"
     table = pa.table(
@@ -40,8 +45,9 @@ def main(out_path: Path | None = None) -> Path:
             "latency_ms": pa.array([r[3] for r in ROWS], type=pa.float64()),
         }
     )
+    table = table.replace_schema_metadata({b"db_id": DB_ID.encode()})
     pq.write_table(table, out_path)
-    print(f"wrote {out_path} ({len(ROWS)} rows)")
+    print(f"wrote {out_path} ({len(ROWS)} rows, db_id={DB_ID!r})")
     return out_path
 
 

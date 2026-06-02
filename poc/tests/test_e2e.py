@@ -55,8 +55,9 @@ def model():
 
 @pytest.fixture(scope="module")
 def engine(model):
-    """Build the Rust Engine from the Python model."""
-    return aic_step.build_engine(model)
+    """Build the Rust Engine from the Python model.  Stamp db_id so the
+    compat check sees matched engine/db pairs in downstream tests."""
+    return aic_step.build_engine(model, metadata={"db_id": model.DB_ID})
 
 
 # ---------------------------------------------------------------------------
@@ -156,8 +157,40 @@ def test_engine_bytes_round_trip(engine, db):
 # ---------------------------------------------------------------------------
 
 
-def test_dbhandle_from_dict_matches_parquet_load(engine, db, py_db):
-    db2 = aic_step.DbHandle.from_dict(py_db)
+def test_dbhandle_from_dict_matches_parquet_load(engine, db, py_db, model):
+    db2 = aic_step.DbHandle.from_dict(py_db, metadata={"db_id": model.DB_ID})
     out_a = engine.run_static(db, 4, 1024, "static")
     out_b = engine.run_static(db2, 4, 1024, "static")
     assert out_a == out_b
+
+
+# ---------------------------------------------------------------------------
+# Engine ↔ DB compat metadata
+# ---------------------------------------------------------------------------
+
+
+def test_db_carries_parquet_metadata(db, model):
+    """Parquet kv-metadata flows through into DbHandle.metadata."""
+    assert db.metadata("db_id") == model.DB_ID
+
+
+def test_engine_carries_build_metadata(engine, model):
+    assert engine.metadata("db_id") == model.DB_ID
+
+
+def test_check_db_compat_passes_on_match(engine, db):
+    engine.check_db_compat(db)  # should not raise
+
+
+def test_check_db_compat_fails_on_mismatch(model, py_db):
+    e = aic_step.build_engine(model, metadata={"db_id": "wrong_gpu"})
+    db_wrong = aic_step.DbHandle.from_dict(py_db, metadata={"db_id": model.DB_ID})
+    with pytest.raises(RuntimeError, match="db_id mismatch"):
+        e.check_db_compat(db_wrong)
+
+
+def test_check_db_compat_passes_when_engine_unstamped(model, py_db):
+    """Engine with no db_id is treated as 'don't care' — backward compat."""
+    e = aic_step.build_engine(model)  # no metadata
+    db_any = aic_step.DbHandle.from_dict(py_db, metadata={"db_id": "anything"})
+    e.check_db_compat(db_any)  # should not raise

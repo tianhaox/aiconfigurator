@@ -71,7 +71,15 @@ fn main() -> Result<(), String> {
 
     println!("[mocker_demo] loading db: {parquet_path}");
     let db = Database::load_gemm_parquet(Path::new(&parquet_path))?;
-    println!("[mocker_demo]   gemm_rows={}", db.gemm.len());
+    println!(
+        "[mocker_demo]   gemm_rows={}, db_id={:?}",
+        db.gemm.len(),
+        db.metadata.get("db_id")
+    );
+
+    // Fail fast on engine/db mismatch.  A no-op when either side has no
+    // db_id stamp; informative error if both are stamped and disagree.
+    engine.check_db_compat(&db)?;
 
     // A handful of independent points; pretend each one comes from a
     // scheduler telemetry sample.

@@ -81,6 +81,26 @@ impl Engine {
         Self::from_bytes(&bytes)
     }
 
+    /// Verify this engine and the given DB agree on `db_id`.
+    ///
+    /// An engine with no `db_id` stamp is treated as "doesn't care" and
+    /// passes against any db.  Otherwise the engine's `db_id` must match
+    /// the db's `db_id` exactly.
+    pub fn check_db_compat(&self, db: &Database) -> Result<(), String> {
+        let engine_id = self.metadata.get("db_id");
+        let db_id = db.metadata.get("db_id");
+        match (engine_id, db_id) {
+            (None, _) => Ok(()),
+            (Some(e), Some(d)) if e == d => Ok(()),
+            (Some(e), Some(d)) => Err(format!(
+                "db_id mismatch: engine expects {e:?}, db is {d:?}"
+            )),
+            (Some(e), None) => Err(format!(
+                "db_id mismatch: engine expects {e:?}, db has no db_id stamp"
+            )),
+        }
+    }
+
     // -------------------------------------------------------------------
     // Hot path: same function called by both PyO3 binding and Rust crate
     // direct callers (e.g. mocker_demo).

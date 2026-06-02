@@ -4,6 +4,7 @@
 //! the cdylib).  Binaries like `mocker_demo` build with
 //! ``--no-default-features`` and skip this module entirely.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -69,6 +70,16 @@ impl PyEngine {
         Ok(PyBytes::new_bound(py, &bytes))
     }
 
+    fn metadata(&self, key: &str) -> Option<String> {
+        self.inner.metadata.get(key).cloned()
+    }
+
+    fn check_db_compat(&self, db: &PyDbHandle) -> PyResult<()> {
+        self.inner
+            .check_db_compat(&db.inner)
+            .map_err(PyRuntimeError::new_err)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "<Engine ctx_ops={} gen_ops={}>",
@@ -97,23 +108,33 @@ impl PyDbHandle {
     }
 
     #[staticmethod]
-    fn from_dict(d: &Bound<'_, PyDict>) -> PyResult<Self> {
+    #[pyo3(signature = (d, metadata=None))]
+    fn from_dict(
+        d: &Bound<'_, PyDict>,
+        metadata: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
         let mut table = GemmTable::default();
         for (key, value) in d.iter() {
             let (m, n, k): (u32, u32, u32) = key.extract()?;
             let lat: f64 = value.extract()?;
             table.insert(m, n, k, lat);
         }
+        let md = extract_metadata(metadata)?;
         Ok(PyDbHandle {
             inner: Arc::new(Database {
                 gemm: table,
                 gpu: GpuSpec::default(),
+                metadata: md,
             }),
         })
     }
 
     fn gemm_table_size(&self) -> usize {
         self.inner.gemm.len()
+    }
+
+    fn metadata(&self, key: &str) -> Option<String> {
+        self.inner.metadata.get(key).cloned()
     }
 
     fn __repr__(&self) -> String {
@@ -126,13 +147,31 @@ impl PyDbHandle {
 // ---------------------------------------------------------------------------
 
 #[pyfunction]
-fn build_engine(model: &Bound<'_, PyAny>) -> PyResult<PyEngine> {
+#[pyo3(signature = (model, metadata=None))]
+fn build_engine(
+    model: &Bound<'_, PyAny>,
+    metadata: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyEngine> {
     let context_ops = extract_op_list(model.getattr("context_ops")?)?;
     let generation_ops = extract_op_list(model.getattr("generation_ops")?)?;
-    let engine = Engine::new(context_ops, generation_ops);
+    let mut engine = Engine::new(context_ops, generation_ops);
+    engine.metadata = extract_metadata(metadata)?;
     Ok(PyEngine {
         inner: Arc::new(engine),
     })
+}
+
+fn extract_metadata(d: Option<&Bound<'_, PyDict>>) -> PyResult<HashMap<String, String>> {
+    let Some(d) = d else {
+        return Ok(HashMap::new());
+    };
+    let mut out = HashMap::with_capacity(d.len());
+    for (k, v) in d.iter() {
+        let key: String = k.extract()?;
+        let val: String = v.extract()?;
+        out.insert(key, val);
+    }
+    Ok(out)
 }
 
 fn extract_op_list(seq: Bound<'_, PyAny>) -> PyResult<Vec<OpSpec>> {

@@ -59,18 +59,34 @@ impl Default for GpuSpec {
 pub struct Database {
     pub gemm: GemmTable,
     pub gpu: GpuSpec,
+    /// Free-form identity stamps (e.g. `db_id="h200_trtllm_1.0.0"`).
+    /// Used by `Engine::check_db_compat` to fail fast on engine/db mismatches.
+    pub metadata: HashMap<String, String>,
     // future: pub context_attention: AttnTable, etc.
 }
 
 impl Database {
     /// Load a parquet file into the GEMM table.  Schema: columns `m`, `n`,
-    /// `k` (UInt32), `latency_ms` (Float64).
+    /// `k` (UInt32), `latency_ms` (Float64).  Any parquet kv-metadata is
+    /// copied into `Database.metadata`.
     pub fn load_gemm_parquet(path: &Path) -> Result<Arc<Self>, String> {
         let file = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
-        let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)
-            .map_err(|e| format!("parquet open: {e}"))?
-            .build()
-            .map_err(|e| format!("parquet build: {e}"))?;
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+            .map_err(|e| format!("parquet open: {e}"))?;
+
+        // Pull kv-metadata before the builder is consumed by build().
+        let metadata: HashMap<String, String> = builder
+            .metadata()
+            .file_metadata()
+            .key_value_metadata()
+            .map(|kvs| {
+                kvs.iter()
+                    .filter_map(|kv| kv.value.as_ref().map(|v| (kv.key.clone(), v.clone())))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut reader = builder.build().map_err(|e| format!("parquet build: {e}"))?;
 
         let mut table = GemmTable::default();
         while let Some(batch) = reader.next() {
@@ -89,6 +105,7 @@ impl Database {
         Ok(Arc::new(Database {
             gemm: table,
             gpu: GpuSpec::default(),
+            metadata,
         }))
     }
 

@@ -54,6 +54,12 @@ class MockLLMModel:
     bf16) and uses an SoL roofline model that needs no DB lookup.
     """
 
+    #: Identity of the DB this model expects.  Engine builder stamps it
+    #: into engine.metadata["db_id"]; the parquet builder writes the same
+    #: string into the parquet kv-metadata.  Mismatched values trigger a
+    #: hard error in Engine.check_db_compat.
+    DB_ID: str = "mock_h100"
+
     def __init__(self, hidden: int = 4096, n_layers: int = 32) -> None:
         dsa_ctx = MockDsaOp(
             _name="dsa_ctx",
