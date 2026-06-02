@@ -36,11 +36,29 @@ impl GemmTable {
     }
 }
 
+/// GPU peak specs used by analytic SoL (roofline) cost models.
+/// Defaults are H100 SXM5.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GpuSpec {
+    pub peak_tflops_bf16: f64,
+    pub hbm_bw_gbps: f64,
+}
+
+impl Default for GpuSpec {
+    fn default() -> Self {
+        GpuSpec {
+            peak_tflops_bf16: 990.0,
+            hbm_bw_gbps: 3350.0,
+        }
+    }
+}
+
 /// Top-level database handle.  Owns per-op tables.  Shared via `Arc` for
 /// cheap clones across threads / sweep points.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Database {
     pub gemm: GemmTable,
+    pub gpu: GpuSpec,
     // future: pub context_attention: AttnTable, etc.
 }
 
@@ -68,7 +86,10 @@ impl Database {
                 );
             }
         }
-        Ok(Arc::new(Database { gemm: table }))
+        Ok(Arc::new(Database {
+            gemm: table,
+            gpu: GpuSpec::default(),
+        }))
     }
 
     /// Construct an empty Database (useful for testing without a parquet file).

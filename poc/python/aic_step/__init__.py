@@ -9,6 +9,6 @@ This package exports its symbols at the top level so users write:
 regardless of where the compiled artifact lives.
 """
 
-from ._native import DbHandle, Engine, build_engine, load_engine
+from ._native import DbHandle, Engine, build_engine, engine_from_bytes, load_engine
 
-__all__ = ["DbHandle", "Engine", "build_engine", "load_engine"]
+__all__ = ["DbHandle", "Engine", "build_engine", "engine_from_bytes", "load_engine"]

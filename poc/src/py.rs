@@ -9,9 +9,9 @@ use std::sync::Arc;
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyBytes, PyDict, PyList};
 
-use crate::db::{Database, GemmTable};
+use crate::db::{Database, GemmTable, GpuSpec};
 use crate::engine::{Engine, StaticMode};
 use crate::op::OpSpec;
 
@@ -48,7 +48,7 @@ impl PyEngine {
         let db_arc = Arc::clone(&db.inner);
 
         let result = py
-            .allow_threads(move || inner.run_static_internal(&db_arc, batch_size, seq_len, mode))
+            .allow_threads(move || inner.run_static(&db_arc, batch_size, seq_len, mode))
             .map_err(PyRuntimeError::new_err)?;
 
         let out = PyDict::new_bound(py);
@@ -62,6 +62,11 @@ impl PyEngine {
         self.inner
             .save_bin(std::path::Path::new(path))
             .map_err(PyRuntimeError::new_err)
+    }
+
+    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let bytes = self.inner.to_bytes().map_err(PyRuntimeError::new_err)?;
+        Ok(PyBytes::new_bound(py, &bytes))
     }
 
     fn __repr__(&self) -> String {
@@ -100,7 +105,10 @@ impl PyDbHandle {
             table.insert(m, n, k, lat);
         }
         Ok(PyDbHandle {
-            inner: Arc::new(Database { gemm: table }),
+            inner: Arc::new(Database {
+                gemm: table,
+                gpu: GpuSpec::default(),
+            }),
         })
     }
 
@@ -151,8 +159,24 @@ fn extract_op_spec(op: &Bound<'_, PyAny>) -> PyResult<OpSpec> {
                 k,
             })
         }
+        "dsa" => {
+            let num_heads: u32 = op.getattr("_num_heads")?.extract()?;
+            let head_dim_qk: u32 = op.getattr("_head_dim_qk")?.extract()?;
+            let head_dim_v: u32 = op.getattr("_head_dim_v")?.extract()?;
+            let topk: u32 = op.getattr("_topk")?.extract()?;
+            let dtype_bytes: u8 = op.getattr("_dtype_bytes")?.extract()?;
+            Ok(OpSpec::Dsa {
+                name,
+                scale_factor,
+                num_heads,
+                head_dim_qk,
+                head_dim_v,
+                topk,
+                dtype_bytes,
+            })
+        }
         other => Err(PyValueError::new_err(format!(
-            "unknown op_kind {other:?}; PoC only supports 'gemm'"
+            "unknown op_kind {other:?}; PoC supports 'gemm' | 'dsa'"
         ))),
     }
 }
@@ -160,6 +184,14 @@ fn extract_op_spec(op: &Bound<'_, PyAny>) -> PyResult<OpSpec> {
 #[pyfunction]
 fn load_engine(path: &str) -> PyResult<PyEngine> {
     let engine = Engine::load_bin(std::path::Path::new(path)).map_err(PyRuntimeError::new_err)?;
+    Ok(PyEngine {
+        inner: Arc::new(engine),
+    })
+}
+
+#[pyfunction]
+fn engine_from_bytes(bytes: &[u8]) -> PyResult<PyEngine> {
+    let engine = Engine::from_bytes(bytes).map_err(PyRuntimeError::new_err)?;
     Ok(PyEngine {
         inner: Arc::new(engine),
     })
@@ -175,5 +207,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDbHandle>()?;
     m.add_function(wrap_pyfunction!(build_engine, m)?)?;
     m.add_function(wrap_pyfunction!(load_engine, m)?)?;
+    m.add_function(wrap_pyfunction!(engine_from_bytes, m)?)?;
     Ok(())
 }

@@ -23,10 +23,30 @@ from collections.abc import Iterable
 
 from .mock_model import MockGemmOp
 
+# Must match Rust's GpuSpec::default() in src/db.rs.
+PEAK_TFLOPS_BF16 = 990.0
+HBM_BW_GBPS = 3350.0
+
 
 def query_gemm(db: dict[tuple[int, int, int], float], m: int, n: int, k: int) -> float:
     """Exact lookup; raises KeyError on a miss (matching Rust's behavior)."""
     return db[(m, n, k)]
+
+
+def compute_dsa_latency_ms(op, batch_size: int, seq_len: int) -> float:
+    """SoL roofline: max(compute_ms, mem_ms), scaled by scale_factor.
+
+    Mirrors the Rust execute_op DSA arm exactly.
+    """
+    queries = batch_size * seq_len
+    flops_per_query = op._num_heads * 2 * op._topk * (op._head_dim_qk + op._head_dim_v)
+    bytes_per_query = op._num_heads * op._topk * (op._head_dim_qk + op._head_dim_v) * op._dtype_bytes
+    total_flops = queries * flops_per_query
+    total_bytes = queries * bytes_per_query
+    compute_ms = total_flops / (PEAK_TFLOPS_BF16 * 1e12) * 1e3
+    mem_ms = total_bytes / (HBM_BW_GBPS * 1e9) * 1e3
+    sol_ms = max(compute_ms, mem_ms)
+    return sol_ms * op._scale_factor
 
 
 def _run_phase(
@@ -37,9 +57,14 @@ def _run_phase(
 ) -> dict[str, float]:
     out: dict[str, float] = {}
     for op in ops:
-        base = query_gemm(db, op._m, op._n, op._k)
-        x = batch_size * seq_len
-        latency = base * x * op._scale_factor
+        if op.op_kind == "gemm":
+            base = query_gemm(db, op._m, op._n, op._k)
+            x = batch_size * seq_len
+            latency = base * x * op._scale_factor
+        elif op.op_kind == "dsa":
+            latency = compute_dsa_latency_ms(op, batch_size, seq_len)
+        else:
+            raise ValueError(f"unknown op_kind {op.op_kind!r}")
         out[op._name] = out.get(op._name, 0.0) + latency
     return out
 

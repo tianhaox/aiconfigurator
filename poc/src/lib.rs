@@ -12,7 +12,7 @@ mod db;
 mod engine;
 mod op;
 
-pub use crate::db::{Database, GemmTable};
+pub use crate::db::{Database, GemmTable, GpuSpec};
 pub use crate::engine::{Engine, OpResult, StaticMode};
 pub use crate::op::OpSpec;
 

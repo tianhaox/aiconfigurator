@@ -30,15 +30,49 @@ class MockGemmOp:
     op_kind: str = "gemm"
 
 
-class MockLLMModel:
-    """A toy LLM: 2 GEMMs in context phase, 1 GEMM in generation phase.
+@dataclass
+class MockDsaOp:
+    """One DeepSeek Sparse Attention op.  Cost = max(compute, mem) roofline."""
 
-    The shapes are stand-ins for a real transformer's qkv_proj /
+    _name: str
+    _scale_factor: float
+    _num_heads: int
+    _head_dim_qk: int
+    _head_dim_v: int
+    _topk: int
+    _dtype_bytes: int
+    op_kind: str = "dsa"
+
+
+class MockLLMModel:
+    """A toy LLM: 2 GEMMs + 1 DSA in context, 1 GEMM + 1 DSA in generation.
+
+    The GEMM shapes stand in for a real transformer's qkv_proj /
     out_proj / decode_qkv.  All GEMM shapes must appear in the test
-    perf parquet (see ``data/build_gemm_parquet.py``).
+    perf parquet (see ``data/build_gemm_parquet.py``).  The DSA op is
+    sized after DeepSeek-V3 (num_heads=128, qk=192, v=128, topk=2048,
+    bf16) and uses an SoL roofline model that needs no DB lookup.
     """
 
     def __init__(self, hidden: int = 4096, n_layers: int = 32) -> None:
+        dsa_ctx = MockDsaOp(
+            _name="dsa_ctx",
+            _scale_factor=float(n_layers),
+            _num_heads=128,
+            _head_dim_qk=192,
+            _head_dim_v=128,
+            _topk=2048,
+            _dtype_bytes=2,
+        )
+        dsa_gen = MockDsaOp(
+            _name="dsa_gen",
+            _scale_factor=float(n_layers),
+            _num_heads=128,
+            _head_dim_qk=192,
+            _head_dim_v=128,
+            _topk=2048,
+            _dtype_bytes=2,
+        )
         self.context_ops = [
             MockGemmOp(
                 _name="qkv_proj",
@@ -54,6 +88,7 @@ class MockLLMModel:
                 _n=hidden,
                 _k=hidden,
             ),
+            dsa_ctx,
         ]
         self.generation_ops = [
             MockGemmOp(
@@ -63,6 +98,7 @@ class MockLLMModel:
                 _n=3 * hidden,
                 _k=hidden,
             ),
+            dsa_gen,
         ]
         self.hidden = hidden
         self.n_layers = n_layers

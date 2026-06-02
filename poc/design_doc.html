@@ -268,8 +268,11 @@ Task spec  →  sweep loop  →  Predictor strategy  →  backend.run_static
 <p>The new design separates <strong>what to compute</strong> (Python's
 job — model topology, quant semantics, layer counts) from
 <strong>how fast / how multi-threaded to compute it</strong> (Rust's job).
-Between them sits a <strong>compiled artifact</strong> — a plain-data
-representation of the op list — that both languages share.</p>
+Between them sits a <strong>bytes-encoded compiled artifact</strong> — a
+plain-data representation of the op list. The <em>bytes</em> are the
+architectural boundary; disk files, in-memory pipes / stdin, shared
+memory, and <code>include_bytes!</code> are all valid transports for those
+bytes.</p>
 
 <div class="ascii">
                 Python                                          Rust
@@ -283,19 +286,44 @@ representation of the op list — that both languages share.</p>
 
    ─────── compile/build ─────────►   build Engine: Vec<OpSpec> + metadata
                                                     │
+       engine.to_bytes() ──── bytes ─────►  Engine::from_bytes(&amp;buf)
+       (in-memory; or save_bin             (in-memory pipe / disk / stdin —
+        for disk transport)                 same bytes, alternate packaging)
+                                                    │
                                                     ↓
-   for (batch, seq, mode) in sweep:       run_static_internal(engine, db, batch, seq, mode)
+   for (batch, seq, mode) in sweep:       run_static(engine, db, batch, seq, mode)
        call into Engine ────────►           for op in engine.op_list:
                                                 lookup db, scale, accumulate
                                             return HashMap&lt;op_name, latency&gt;
    ◄────── result ──────────────────
 </div>
 
+<p>Two real-world examples of the same architectural pattern
+(Python builds → bytes/JSON cross → Rust deserializes → Rust runtime):</p>
+
+<table>
+  <thead><tr><th>Pattern</th><th>Encoding</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Dynamo <code>MockEngineArgs</code></td>
+      <td>JSON string</td>
+      <td><code>MockEngineArgs.from_json(json.dumps(raw))</code>
+          (<code>replay/main.py:180</code>)</td>
+    </tr>
+    <tr>
+      <td>PoC Engine artifact</td>
+      <td>bincode bytes</td>
+      <td><code>engine.to_bytes()</code> /
+          <code>engine_from_bytes(blob)</code></td>
+    </tr>
+  </tbody>
+</table>
+
 <h3 id="engine">2.2 The Engine abstraction</h3>
 
 <p>The new central object is the <strong>Engine</strong>: a Rust
 struct holding a compiled op list plus metadata. Its sole runtime
-method is <code>run_static_internal(db, batch, seq, mode) → HashMap&lt;name, latency&gt;</code>.</p>
+method is <code>run_static(db, batch, seq, mode) → HashMap&lt;name, latency&gt;</code>.</p>
 
 <table>
   <thead><tr><th>Property</th><th>Engine</th><th>V1 InferenceSession (deleted)</th><th>V2 stateless Predictor (current)</th></tr></thead>
@@ -318,7 +346,7 @@ against V1's three-things-in-one design; the PoC shows that
 
 <div class="ascii">
                     ┌──────────────────────────────────┐
-                    │  Engine::run_static_internal     │
+                    │  Engine::run_static              │
                     │  (rust/aic-step/src/engine.rs)   │   ◄── single source of truth
                     │  pure Rust, zero Python          │
                     └──────────────▲───────────────────┘
@@ -327,15 +355,15 @@ against V1's three-things-in-one design; the PoC shows that
                   │                                │
         ┌─────────┴───────────┐         ┌──────────┴──────────┐
         │ PyO3 binding        │         │ Rust crate direct   │
-        │ Engine.run_static   │         │ engine.run_static_  │
-        │   (PyEngine wrap)   │         │   internal(...)     │
+        │ Engine.run_static   │         │ engine.run_static() │
+        │   (PyEngine wrap)   │         │  (from bytes/disk)  │
         └─────────┬───────────┘         └──────────┬──────────┘
                   │                                │
         Python: Task / sweep              External Rust callers
         (releases GIL on call)            (Mocker, future tools)
 </div>
 
-<p>Both bindings hit the same <code>run_static_internal</code>. The PyO3
+<p>Both bindings hit the same <code>run_static</code>. The PyO3
 wrapper releases the GIL during execution, so Python-side multithreading
 (or batch entry points) parallelizes without the GIL bottleneck.</p>
 
@@ -354,7 +382,7 @@ wrapper releases the GIL during execution, so Python-side multithreading
 ├── README.md
 ├── src/
 │   ├── lib.rs                # crate entry; pyo3 gated behind `python` feature
-│   ├── op.rs                 # OpSpec enum (Gemm only in PoC)
+│   ├── op.rs                 # OpSpec enum (Gemm + Dsa in PoC)
 │   ├── db.rs                 # Database + arrow-rs parquet loader
 │   ├── engine.rs             # Engine + run_static_internal (hot path)
 │   ├── py.rs                 # PyO3 bindings (gated by feature)
@@ -388,15 +416,19 @@ result = engine.run_static(db, batch_size=8, seq_len=2048, mode="static")
 <h4>External Rust caller (mocker_demo)</h4>
 <pre><code>use aic_step::{Database, Engine, StaticMode};
 
-let engine = Arc::new(Engine::load_bin("compiled.bin")?);
+// Primary mode: receive Engine bytes over stdin / pipe / shared mem.
+let mut buf = Vec::new();
+std::io::stdin().read_to_end(&amp;mut buf)?;
+let engine = Arc::new(Engine::from_bytes(&amp;buf)?);
+// (or, alternate packaging) let engine = Engine::load_bin("compiled.bin")?;
 let db = Arc::new(Database::load_gemm_parquet("data/gemm_perf.parquet")?);
 
 // Same hot path as Python; no PyO3 in the picture.
-let result = engine.run_static_internal(&amp;db, 8, 2048, StaticMode::Full)?;
+let result = engine.run_static(&amp;db, 8, 2048, StaticMode::Full)?;
 
 // Trivial rayon fan-out across many points:
 points.par_iter().for_each(|p| {
-    let _ = engine.run_static_internal(&amp;db, p.batch, p.seq, StaticMode::Full);
+    let _ = engine.run_static(&amp;db, p.batch, p.seq, StaticMode::Full);
 });
 </code></pre>
 
@@ -453,8 +485,8 @@ cargo build --release --bin mocker_demo --no-default-features
     </tr>
     <tr>
       <td>4</td>
-      <td>Engine save/load .bin round-trip</td>
-      <td><span class="pill ok">PASS</span> bincode artifact reloads to identical Engine</td>
+      <td>Engine bytes round-trip (in-memory + disk)</td>
+      <td><span class="pill ok">PASS</span> <code>to_bytes</code>/<code>engine_from_bytes</code> and <code>save_bin</code>/<code>load_engine</code> both reload to identical Engine</td>
     </tr>
     <tr>
       <td>5</td>
@@ -523,11 +555,21 @@ compact, Rust-native). Considered Arrow IPC and JSON; bincode wins on
 size/speed. JSON debugging is achievable via a dump tool if needed.</p>
 
 <h3>5.4 DB layout</h3>
-<p>PoC's DB is per-op (GEMM only). Production DB has ~10 op kinds
-(attention, MoE, comm, MLA, etc.). The PoC's table abstraction
-(<code>Database { gemm: GemmTable, ... }</code>) maps each op kind to
-its own Rust struct, matching today's "<em>op owns its data</em>" Python
-layout. Extending: one new struct per op, ~50–200 lines each.</p>
+<p>PoC's DB is per-op (GEMM table + per-GPU <code>GpuSpec</code> for
+analytic ops). Production DB has ~10 op kinds (attention, MoE, comm, MLA,
+etc.). The PoC's table abstraction (<code>Database { gemm: GemmTable,
+gpu: GpuSpec, ... }</code>) maps each op kind to its own Rust struct,
+matching today's "<em>op owns its data</em>" Python layout. Extending:
+one new struct per op, ~50–200 lines each.</p>
+
+<h3>5.5 Op kinds in the PoC</h3>
+<ul>
+  <li><code>Gemm</code> — table-lookup cost model
+      (<code>db[(m,n,k)] * batch*seq * scale_factor</code>).</li>
+  <li><code>Dsa</code> — DeepSeek-style sparse attention; latency =
+      <code>max(compute_roofline, memory_roofline) × n_layers</code>
+      (SoL — needs only <code>GpuSpec</code>, no per-shape DB row).</li>
+</ul>
 
 <!-- ======================================================================= -->
 <h2 id="roadmap">6. Roadmap (if we proceed)</h2>

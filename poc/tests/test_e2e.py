@@ -72,7 +72,8 @@ def test_imports():
 
 
 def test_engine_basic_props(engine):
-    assert engine.op_count() == 3  # 2 context + 1 generation
+    # ctx: qkv_proj, out_proj, dsa_ctx  (3) + gen: decode_qkv, dsa_gen (2)
+    assert engine.op_count() == 5
 
 
 def test_dbhandle_parquet_load(db):
@@ -133,6 +134,21 @@ def test_engine_save_load_round_trip(engine, db, py_db, model, tmp_path):
     assert set(rust_b.keys()) == set(py.keys())
     for name, py_val in py.items():
         assert math.isclose(rust_b[name], py_val, rel_tol=1e-12, abs_tol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# Bytes-boundary round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_engine_bytes_round_trip(engine, db):
+    """Engine.to_bytes → engine_from_bytes runs identically (in-memory transport)."""
+    blob = engine.to_bytes()
+    assert isinstance(blob, bytes) and len(blob) > 0
+    e2 = aic_step.engine_from_bytes(blob)
+    a = engine.run_static(db, 8, 2048, "static")
+    b = e2.run_static(db, 8, 2048, "static")
+    assert a == b
 
 
 # ---------------------------------------------------------------------------

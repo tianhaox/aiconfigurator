@@ -2,7 +2,7 @@
 //!
 //! Built once from a Python model (op list), called many times.
 //! Both the PyO3 binding (Python sweep path) and direct Rust callers
-//! (mocker_demo binary) hit the same `run_static_internal`.
+//! (mocker_demo binary) hit the same `run_static`.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -61,16 +61,24 @@ impl Engine {
         }
     }
 
-    /// Serialize to bincode bytes.  External Rust callers (Mocker) load
-    /// these via `Engine::load_bin`.
+    /// Serialize to bincode bytes.  The bytes are the architectural
+    /// boundary; disk and stdin are just transports.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
+        bincode::serialize(self).map_err(|e| format!("serialize: {e}"))
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        bincode::deserialize(bytes).map_err(|e| format!("deserialize: {e}"))
+    }
+
     pub fn save_bin(&self, path: &Path) -> Result<(), String> {
-        let bytes = bincode::serialize(self).map_err(|e| format!("serialize: {e}"))?;
+        let bytes = self.to_bytes()?;
         std::fs::write(path, bytes).map_err(|e| format!("write {}: {e}", path.display()))
     }
 
     pub fn load_bin(path: &Path) -> Result<Self, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))?;
-        bincode::deserialize(&bytes).map_err(|e| format!("deserialize: {e}"))
+        Self::from_bytes(&bytes)
     }
 
     // -------------------------------------------------------------------
@@ -83,7 +91,7 @@ impl Engine {
     /// - `batch_size`: max concurrent requests
     /// - `seq_len`: effective sequence length for this phase
     /// - `mode`: which phase to compute
-    pub fn run_static_internal(
+    pub fn run_static(
         &self,
         db: &Database,
         batch_size: u32,
@@ -146,6 +154,37 @@ fn execute_op(
             let x = (batch_size as f64) * (seq_len as f64);
             Ok(OpResult {
                 latency_ms: base * x * scale_factor,
+            })
+        }
+        OpSpec::Dsa {
+            name: _,
+            scale_factor,
+            num_heads,
+            head_dim_qk,
+            head_dim_v,
+            topk,
+            dtype_bytes,
+        } => {
+            // DSA (DeepSeek Sparse Attention) roofline SoL: each query
+            // attends to `topk` selected keys; max(compute, memory) is
+            // the bottleneck wall — whichever side dominates sets latency.
+            let queries = (batch_size as f64) * (seq_len as f64);
+            let nh = *num_heads as f64;
+            let hk = *head_dim_qk as f64;
+            let hv = *head_dim_v as f64;
+            let tk = *topk as f64;
+            let db_bytes = *dtype_bytes as f64;
+
+            let flops_per_query = nh * 2.0 * tk * (hk + hv);
+            let bytes_per_query = nh * tk * (hk + hv) * db_bytes;
+            let total_flops = queries * flops_per_query;
+            let total_bytes = queries * bytes_per_query;
+
+            let compute_ms = total_flops / (db.gpu.peak_tflops_bf16 * 1e12) * 1e3;
+            let mem_ms = total_bytes / (db.gpu.hbm_bw_gbps * 1e9) * 1e3;
+            let sol_ms = compute_ms.max(mem_ms);
+            Ok(OpResult {
+                latency_ms: sol_ms * scale_factor,
             })
         }
     }
