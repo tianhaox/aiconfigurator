@@ -1,0 +1,37 @@
+name: qwen3_0_6b_real_ckpt_cuda
+
+target:
+  gpu: cuda
+  sm: "90"
+
+model:
+  family: qwen3_dense
+  vocab_size: 151936
+  hidden_size: 1024
+  num_layers: 28
+  num_heads: 16
+  num_key_value_heads: 8
+  head_dim: 128
+  intermediate_size: 3072
+  rope_theta: 1000000
+  rms_norm_eps: 0.000001
+
+runtime:
+  backend: torch_reference
+  dtype: bfloat16
+  device: cuda
+  max_batch_size: 1
+  max_seq_len: 64
+  kv_layout: static_dense
+
+features:
+  batching: static
+  sampling: greedy
+  attention: qwen3_gqa_flashinfer_single_decode
+  pd_separation: false
+  tensor_parallel: false
+
+weights:
+  source: hf_safetensors
+  repo_id: Qwen/Qwen3-0.6B
+  revision: main
