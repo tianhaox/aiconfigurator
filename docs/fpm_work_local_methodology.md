@@ -200,3 +200,31 @@ collector, but the ratios are useful for comparing train shape plans.
   corresponding work features across scheduled requests.
 - Keep module-level decomposition out of the default model unless a separate
   collection path explicitly needs it.
+
+## Reference Scripts
+
+The research scripts under `fpm/` provide a small standalone harness for
+reproducing the shape-plan and model experiments. They intentionally do not
+include generated ground-truth CSV data.
+
+Generate the 773-point prefill train plan:
+
+```bash
+python fpm/prefill_sampling.py \
+  --output /tmp/fpm_prefill_plan_773.csv \
+  --val-count 0 \
+  --test-count 0 \
+  --batch-anchors 1,2,4,8,32 \
+  --new-token-anchors 1,2,4,8,16,64,256,1024,4096,16384,65536
+```
+
+Evaluate a ground-truth CSV with work-local:
+
+```bash
+python fpm/forward_pass_work_model.py \
+  --data fpm/data/prefill_ground_truth.csv \
+  --train-plan /tmp/fpm_prefill_plan_773.csv \
+  --eval-splits val,test \
+  --models work_local \
+  --local-neighbors 16
+```
