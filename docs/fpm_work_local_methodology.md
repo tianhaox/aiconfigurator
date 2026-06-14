@@ -189,6 +189,9 @@ These numbers exclude model load, collector startup, warmup, and repeated
 measurements. Those overheads should be accounted for separately in a real FPM
 collector, but the ratios are useful for comparing train shape plans.
 
+See `docs/fpm_work_local_experiment_results.md` for the detailed result tables
+and reproduction commands.
+
 ## Open Items
 
 - Validate against real Dynamo/vLLM FPM measurements instead of static AIC
