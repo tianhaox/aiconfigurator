@@ -76,24 +76,40 @@ The recommended prediction order is:
    small weighted ridge regression in the work feature space. This keeps the
    model simple and makes the fitted slopes local to the current regime.
 
-3. Optional SOL efficiency cap.
-   If a speed-of-light latency estimate is available, compute training
-   efficiencies:
+3. Optional SOL boundary-efficiency extrapolation.
+   This path is disabled by default and should only run when the query is
+   outside the measured boundary on selected dimensions. If a speed-of-light
+   latency estimate is available, freeze the boundary efficiency:
 
    ```text
-   efficiency = T_sol / T_actual
+   efficiency_boundary = T_sol(boundary) / T_actual(boundary)
+   T_pred(query) = T_sol(query) / efficiency_boundary
+
+   equivalently:
+   T_pred(query) = T_actual(boundary) * T_sol(query) / T_sol(boundary)
    ```
 
-   For extrapolation, efficiency should not grow beyond the observed saturated
-   region. The latency prediction can be capped from below:
+   This is an extrapolation rule, not a lower-bound cap on the work-local
+   prediction. Interpolation continues to use the work-local model. The current
+   script exposes it through:
 
    ```text
-   T_pred >= T_sol / efficiency_cap
+   --sol-boundary-cache <csv-with-key-sol_latency_ms>
+   --sol-boundary-dimensions <dimension-list>
    ```
 
-   `efficiency_cap` can be a high quantile such as p95 or p99 of the training
-   efficiencies in the corresponding regime. If no SOL provider is available,
-   the model falls back to the work-local prediction.
+   By default, only the selected trigger dimensions are allowed to be outside
+   the measured primary shape boundary. For example, `new_tokens` extrapolation
+   will not fire if `past_kv_tokens` is also outside the training range. The
+   script has an explicit `--sol-boundary-allow-mixed-extrapolation` flag for
+   experiments that need multi-dimensional extrapolation.
+
+   In the static AIC experiment, enabling it for `new_tokens` extrapolation
+   helped high-`S` tails. Enabling it directly for `past_kv_tokens` with the
+   current SOL formula overpredicted long-prefix cases, because measured FPM
+   latency was already saturated while the SOL estimate continued to grow with
+   prefix length. Long-prefix extrapolation should therefore either keep high-P
+   boundary measurements or use a prefix-saturated SOL model.
 
 4. Debug fallback.
    Shape-space IDW or nearest-neighbor interpolation may be kept as a baseline
@@ -196,7 +212,9 @@ and reproduction commands.
 
 - Validate against real Dynamo/vLLM FPM measurements instead of static AIC
   latency.
-- Add an optional SOL provider and an extrapolation-only efficiency cap.
+- Connect the optional SOL boundary-efficiency extrapolator to a production SOL
+  provider. Keep it disabled by default until real FPM data confirms which
+  dimensions are safe to trigger.
 - Tune local-neighborhood selection by regime. Very short prefill and decode
   batch/KV boundary regions are the most sensitive.
 - Extend the same work-local framework to mixed-shape batches by summing the

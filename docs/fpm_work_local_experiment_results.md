@@ -222,3 +222,45 @@ The key empirical observations are:
   are used.
 - Very short prefill and decode batch/KV boundary regions remain the main
   regimes that need careful local-neighborhood tuning.
+
+## Optional SOL Boundary Extrapolation
+
+An optional extrapolation-only SOL boundary-efficiency rule was prototyped:
+
+```text
+T_pred(query) = T_actual(boundary) * T_sol(query) / T_sol(boundary)
+```
+
+This rule is disabled by default in `fpm/forward_pass_work_model.py` and is
+controlled by:
+
+```bash
+--sol-boundary-cache <csv-with-key-sol_latency_ms> \
+--sol-boundary-dimensions <dimension-list>
+```
+
+By default, only the selected trigger dimensions may be outside the measured
+primary shape boundary. Mixed extrapolation can be enabled explicitly with
+`--sol-boundary-allow-mixed-extrapolation`.
+
+The experiment used the 773-point plan and then intentionally removed high-S or
+high-P train points to force extrapolation. The table reports worst metrics
+across Qwen3-235B, Qwen3-32B, DeepSeek-V3, and Llama3.1-8B validation/test
+splits.
+
+| Forced extrapolation setup | Trigger dimensions | Work-local worst MAPE/P95/P99/Max | SOL-boundary worst MAPE/P95/P99/Max | Result |
+| --- | --- | ---: | ---: | --- |
+| full 773-point plan | `new_tokens` | 4.84 / 12.15 / 22.48 / 29.63 | 4.84 / 12.15 / 22.48 / 29.63 | no trigger |
+| keep only `S <= 16384` | `new_tokens` | 8.17 / 23.50 / 91.69 / 130.13 | 6.11 / 16.64 / 41.09 / 64.09 | improves high-S tail |
+| keep only `P <= 65536` | `past_kv_tokens` | 5.57 / 20.55 / 32.54 / 74.59 | 13.73 / 81.04 / 152.93 / 244.44 | regresses long-prefix tail |
+| keep `S <= 16384` and `P <= 65536` | `new_tokens` only | 8.34 / 28.90 / 88.59 / 130.13 | 7.34 / 26.27 / 74.28 / 100.09 | improves without using P extrapolation |
+| keep `S <= 16384` and `P <= 65536` | `new_tokens` with mixed extrapolation | 8.34 / 28.90 / 88.59 / 130.13 | 7.91 / 27.63 / 93.66 / 148.03 | mixed P/S extrapolation regresses tail |
+| keep `S <= 16384` and `P <= 65536` | `all` | 8.34 / 28.90 / 88.59 / 130.13 | 14.90 / 88.10 / 147.40 / 482.07 | regresses due to P extrapolation |
+
+The long-prefix regression is caused by the current SOL estimate scaling faster
+with `past_kv_tokens` than measured static FPM latency. For DeepSeek-V3 with
+`P <= 65536`, the boundary-to-query SOL ratio median/p95/max was
+`1.46 / 3.48 / 4.84`, while the measured latency ratio was only
+`0.99 / 1.66 / 1.98`. For long-prefix extrapolation, keep high-P boundary
+measurements or use a prefix-saturated SOL formulation before enabling
+`past_kv_tokens`.

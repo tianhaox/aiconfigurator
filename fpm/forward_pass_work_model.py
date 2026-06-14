@@ -13,6 +13,44 @@ import numpy as np
 
 EPS = 1e-9
 DEFAULT_BATCH_KV_CAP = 1024 * 1024
+STATIC_KEY_METADATA_FIELDS = [
+    "model_path",
+    "system_name",
+    "backend_name",
+    "backend_version",
+    "tp_size",
+    "pp_size",
+    "attention_dp_size",
+    "moe_tp_size",
+    "moe_ep_size",
+    "gemm_quant_mode",
+    "kvcache_quant_mode",
+    "fmha_quant_mode",
+    "moe_quant_mode",
+    "engine_step_backend",
+]
+PREFILL_SOL_BOUNDARY_DIMENSIONS = [
+    "batch_size",
+    "new_tokens",
+    "past_kv_tokens",
+    "total_context_tokens",
+    "sum_prefill_tokens",
+    "batch_total_context_tokens",
+]
+DECODE_SOL_BOUNDARY_DIMENSIONS = [
+    "batch_size",
+    "past_kv_tokens",
+    "attention_work_tokens",
+]
+PREFILL_SOL_PRIMARY_DIMENSIONS = [
+    "batch_size",
+    "new_tokens",
+    "past_kv_tokens",
+]
+DECODE_SOL_PRIMARY_DIMENSIONS = [
+    "batch_size",
+    "past_kv_tokens",
+]
 
 
 @dataclass
@@ -66,6 +104,37 @@ def shape_key(row: dict[str, str], phase: str) -> tuple[int, ...]:
             int(float(row["past_kv_tokens"])),
         )
     raise ValueError(f"unsupported phase: {phase}")
+
+
+def static_sol_key(row: dict[str, str], phase: str) -> str:
+    values = [row.get(field, "") for field in STATIC_KEY_METADATA_FIELDS]
+    batch_size = int(float(row["batch_size"]))
+    if phase == "prefill":
+        new_tokens = int(float(row["new_tokens"]))
+        past_kv_tokens = int(float(row["past_kv_tokens"]))
+        total_context_tokens = int(float(row.get("static_isl") or new_tokens + past_kv_tokens))
+        static_prefix = int(float(row.get("static_prefix") or past_kv_tokens))
+        values += [str(batch_size), str(total_context_tokens), str(static_prefix)]
+        return "|".join(values)
+    if phase == "decode":
+        past_kv_tokens = int(float(row["past_kv_tokens"]))
+        static_isl = int(float(row.get("static_isl") or past_kv_tokens))
+        static_osl = int(float(row.get("static_osl") or 2))
+        values += [str(batch_size), str(static_isl), str(static_osl)]
+        return "|".join(values)
+    raise ValueError(f"unsupported phase: {phase}")
+
+
+def read_sol_cache(path: Path) -> dict[str, float]:
+    values: dict[str, float] = {}
+    for row in read_csv(path):
+        try:
+            sol_latency = float(row["sol_latency_ms"])
+        except (KeyError, ValueError):
+            continue
+        if math.isfinite(sol_latency) and sol_latency > 0:
+            values[row["key"]] = sol_latency
+    return values
 
 
 def train_plan_keys(path: Path, splits: set[str], phase: str) -> set[tuple[int, ...]]:
@@ -177,6 +246,102 @@ def build_dataset(rows: list[dict[str, str]], phase: str, *, require_target: boo
         local_x=np.asarray(local_features, dtype=float),
         y=np.asarray(y_values, dtype=float) if require_target else None,
     )
+
+
+def sol_boundary_dimension_names(phase: str) -> list[str]:
+    if phase == "prefill":
+        return PREFILL_SOL_BOUNDARY_DIMENSIONS
+    if phase == "decode":
+        return DECODE_SOL_BOUNDARY_DIMENSIONS
+    raise ValueError(f"unsupported phase: {phase}")
+
+
+def sol_primary_dimension_names(phase: str) -> list[str]:
+    if phase == "prefill":
+        return PREFILL_SOL_PRIMARY_DIMENSIONS
+    if phase == "decode":
+        return DECODE_SOL_PRIMARY_DIMENSIONS
+    raise ValueError(f"unsupported phase: {phase}")
+
+
+def parse_sol_boundary_dimensions(value: str, phase: str) -> list[str]:
+    if value.strip().lower() in {"", "none", "off", "false", "0"}:
+        return []
+    allowed = sol_boundary_dimension_names(phase)
+    out: list[str] = []
+    for part in parse_split_list(value):
+        if part == "all":
+            out.extend(name for name in allowed if name not in out)
+            continue
+        if part not in allowed:
+            allowed_text = ",".join(["all", *allowed])
+            raise ValueError(f"unsupported SOL boundary dimension {part!r}; allowed: {allowed_text}")
+        if part not in out:
+            out.append(part)
+    return out
+
+
+def sol_boundary_values(row: dict[str, str], phase: str) -> dict[str, float]:
+    batch_size = float_field(row, "batch_size")
+    if phase == "prefill":
+        new_tokens = float_field(row, "new_tokens")
+        past_kv_tokens = float_field(row, "past_kv_tokens")
+        total_context_tokens = new_tokens + past_kv_tokens
+        return {
+            "batch_size": batch_size,
+            "new_tokens": new_tokens,
+            "past_kv_tokens": past_kv_tokens,
+            "total_context_tokens": total_context_tokens,
+            "sum_prefill_tokens": batch_size * new_tokens,
+            "batch_total_context_tokens": batch_size * total_context_tokens,
+        }
+    if phase == "decode":
+        past_kv_tokens = float_field(row, "past_kv_tokens")
+        return {
+            "batch_size": batch_size,
+            "past_kv_tokens": past_kv_tokens,
+            "attention_work_tokens": batch_size * (past_kv_tokens + 1.0),
+        }
+    raise ValueError(f"unsupported phase: {phase}")
+
+
+def sol_boundary_coordinate(value: float, dimension: str) -> float:
+    if dimension == "past_kv_tokens":
+        return math.log2(value + 1.0)
+    return math.log2(max(value, 1.0))
+
+
+def sol_boundary_array(row: dict[str, str], phase: str, dimensions: list[str]) -> np.ndarray:
+    values = sol_boundary_values(row, phase)
+    return np.asarray([values[name] for name in dimensions], dtype=float)
+
+
+def sol_boundary_coord_array(values: dict[str, float], dimensions: list[str]) -> np.ndarray:
+    return np.asarray([sol_boundary_coordinate(values[name], name) for name in dimensions], dtype=float)
+
+
+def recompute_projected_sol_boundary_values(
+    values: dict[str, float],
+    phase: str,
+    locked_dimensions: set[str],
+) -> dict[str, float]:
+    projected = values.copy()
+    if phase == "prefill":
+        batch_size = projected["batch_size"]
+        new_tokens = projected["new_tokens"]
+        past_kv_tokens = projected["past_kv_tokens"]
+        if "total_context_tokens" not in locked_dimensions:
+            projected["total_context_tokens"] = new_tokens + past_kv_tokens
+        if "sum_prefill_tokens" not in locked_dimensions:
+            projected["sum_prefill_tokens"] = batch_size * new_tokens
+        if "batch_total_context_tokens" not in locked_dimensions:
+            projected["batch_total_context_tokens"] = batch_size * projected["total_context_tokens"]
+        return projected
+    if phase == "decode":
+        if "attention_work_tokens" not in locked_dimensions:
+            projected["attention_work_tokens"] = projected["batch_size"] * (projected["past_kv_tokens"] + 1.0)
+        return projected
+    raise ValueError(f"unsupported phase: {phase}")
 
 
 class RawIdwModel:
@@ -368,6 +533,138 @@ class WorkHybridModel:
         return np.maximum(baseline_pred * np.exp(residual), EPS)
 
 
+class SolBoundaryExtrapolationModel:
+    """Wrap a base predictor with extrapolation-only SOL boundary efficiency."""
+
+    def __init__(
+        self,
+        base_model,
+        *,
+        phase: str,
+        sol_cache: dict[str, float],
+        trigger_dimensions: list[str],
+        allow_mixed_extrapolation: bool,
+    ) -> None:
+        self.base_model = base_model
+        self.phase = phase
+        self.sol_cache = sol_cache
+        self.trigger_dimensions = trigger_dimensions
+        self.allow_mixed_extrapolation = allow_mixed_extrapolation
+        self.boundary_dimensions = sol_boundary_dimension_names(phase)
+        self.primary_dimensions = sol_primary_dimension_names(phase)
+        self.train_dataset: Dataset | None = None
+        self.train_values: np.ndarray | None = None
+        self.train_coords: np.ndarray | None = None
+        self.coord_min: np.ndarray | None = None
+        self.coord_scale: np.ndarray | None = None
+        self.value_min: dict[str, float] = {}
+        self.value_max: dict[str, float] = {}
+        self.last_extrapolated_count = 0
+        self.last_sol_miss_count = 0
+
+    def fit(self, dataset: Dataset) -> None:
+        if dataset.y is None:
+            raise ValueError("training dataset requires latency targets")
+        self.base_model.fit(dataset)
+        self.train_dataset = dataset
+        value_rows = [sol_boundary_values(row, self.phase) for row in dataset.rows]
+        self.train_values = np.asarray(
+            [[values[name] for name in self.boundary_dimensions] for values in value_rows],
+            dtype=float,
+        )
+        self.train_coords = np.asarray(
+            [sol_boundary_coord_array(values, self.boundary_dimensions) for values in value_rows],
+            dtype=float,
+        )
+        self.coord_min = np.nanmin(self.train_coords, axis=0)
+        self.coord_scale = np.maximum(np.nanmax(self.train_coords, axis=0) - self.coord_min, EPS)
+        self.value_min = {
+            name: float(np.nanmin(self.train_values[:, index])) for index, name in enumerate(self.boundary_dimensions)
+        }
+        self.value_max = {
+            name: float(np.nanmax(self.train_values[:, index])) for index, name in enumerate(self.boundary_dimensions)
+        }
+
+    def predict(self, dataset: Dataset) -> np.ndarray:
+        pred = self.base_model.predict(dataset)
+        if not self.trigger_dimensions:
+            return pred
+        if (
+            self.train_dataset is None
+            or self.train_dataset.y is None
+            or self.train_values is None
+            or self.train_coords is None
+            or self.coord_min is None
+            or self.coord_scale is None
+        ):
+            raise RuntimeError("model is not fitted")
+
+        self.last_extrapolated_count = 0
+        self.last_sol_miss_count = 0
+        out = pred.copy()
+        dimension_index = {name: index for index, name in enumerate(self.boundary_dimensions)}
+
+        for row_index, row in enumerate(dataset.rows):
+            values = sol_boundary_values(row, self.phase)
+            violations: list[tuple[str, str, float]] = []
+            for name in self.trigger_dimensions:
+                value = values[name]
+                if value < self.value_min[name] - EPS:
+                    violations.append((name, "low", self.value_min[name]))
+                elif value > self.value_max[name] + EPS:
+                    violations.append((name, "high", self.value_max[name]))
+            if not violations:
+                continue
+            if not self.allow_mixed_extrapolation and self._has_unselected_primary_extrapolation(values):
+                continue
+
+            query_sol = self.sol_cache.get(static_sol_key(row, self.phase))
+            if query_sol is None:
+                self.last_sol_miss_count += 1
+                continue
+
+            projected = values.copy()
+            for name, _, boundary_value in violations:
+                projected[name] = boundary_value
+            projected = recompute_projected_sol_boundary_values(
+                projected,
+                self.phase,
+                {name for name, _, _ in violations},
+            )
+            projected_coord = (sol_boundary_coord_array(projected, self.boundary_dimensions) - self.coord_min) / (
+                self.coord_scale
+            )
+
+            mask = np.ones(self.train_values.shape[0], dtype=bool)
+            for name, _, boundary_value in violations:
+                index = dimension_index[name]
+                mask &= np.abs(self.train_values[:, index] - boundary_value) <= EPS
+            candidates = np.flatnonzero(mask)
+            if candidates.size == 0:
+                candidates = np.arange(self.train_values.shape[0])
+
+            candidate_coords = (self.train_coords[candidates] - self.coord_min) / self.coord_scale
+            boundary_index = int(candidates[np.argmin(np.linalg.norm(candidate_coords - projected_coord, axis=1))])
+            boundary_row = self.train_dataset.rows[boundary_index]
+            boundary_sol = self.sol_cache.get(static_sol_key(boundary_row, self.phase))
+            if boundary_sol is None:
+                self.last_sol_miss_count += 1
+                continue
+            out[row_index] = float(self.train_dataset.y[boundary_index] * query_sol / boundary_sol)
+            self.last_extrapolated_count += 1
+
+        return np.maximum(out, EPS)
+
+    def _has_unselected_primary_extrapolation(self, values: dict[str, float]) -> bool:
+        for name in self.primary_dimensions:
+            if name in self.trigger_dimensions:
+                continue
+            value = values[name]
+            if value < self.value_min[name] - EPS or value > self.value_max[name] + EPS:
+                return True
+        return False
+
+
 def feature_scale(x: np.ndarray) -> np.ndarray:
     scale = np.maximum(np.nanmax(np.abs(x), axis=0), EPS)
     scale[0] = 1.0
@@ -510,7 +807,7 @@ def print_group_metrics(dataset: Dataset, pred: np.ndarray, phase: str, group_by
         )
 
 
-def make_model(name: str, args: argparse.Namespace):
+def make_base_model(name: str, args: argparse.Namespace):
     if name == "raw_idw":
         return RawIdwModel(k_neighbors=args.idw_neighbors, idw_power=args.idw_power)
     if name == "work_global":
@@ -530,6 +827,30 @@ def make_model(name: str, args: argparse.Namespace):
             clip_factor=args.clip_factor,
         )
     raise ValueError(f"unsupported model: {name}")
+
+
+def sol_cache_for_args(args: argparse.Namespace) -> dict[str, float]:
+    cached = getattr(args, "_sol_boundary_cache_values", None)
+    if cached is None:
+        if args.sol_boundary_cache is None:
+            raise ValueError("--sol-boundary-cache is required when SOL boundary dimensions are enabled")
+        cached = read_sol_cache(args.sol_boundary_cache)
+        args._sol_boundary_cache_values = cached
+    return cached
+
+
+def make_model(name: str, args: argparse.Namespace, phase: str):
+    model = make_base_model(name, args)
+    trigger_dimensions = parse_sol_boundary_dimensions(args.sol_boundary_dimensions, phase)
+    if not trigger_dimensions:
+        return model
+    return SolBoundaryExtrapolationModel(
+        model,
+        phase=phase,
+        sol_cache=sol_cache_for_args(args),
+        trigger_dimensions=trigger_dimensions,
+        allow_mixed_extrapolation=args.sol_boundary_allow_mixed_extrapolation,
+    )
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -556,6 +877,30 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ridge", type=float, default=1e-6)
     parser.add_argument("--clip-factor", type=float, default=100.0)
     parser.add_argument("--group-by", default="")
+    parser.add_argument(
+        "--sol-boundary-cache",
+        type=Path,
+        help="Optional CSV with key,sol_latency_ms columns for SOL boundary-efficiency extrapolation.",
+    )
+    parser.add_argument(
+        "--sol-boundary-dimensions",
+        default="none",
+        help=(
+            "Comma-separated extrapolation trigger dimensions, or 'all'. "
+            "Default: none. Prefill supports batch_size,new_tokens,past_kv_tokens,"
+            "total_context_tokens,sum_prefill_tokens,batch_total_context_tokens. "
+            "Decode supports batch_size,past_kv_tokens,attention_work_tokens."
+        ),
+    )
+    parser.add_argument(
+        "--sol-boundary-allow-mixed-extrapolation",
+        action="store_true",
+        help=(
+            "Allow SOL boundary extrapolation even when primary dimensions outside "
+            "the trigger list are also outside the train boundary. By default only "
+            "the selected trigger dimensions may be outside."
+        ),
+    )
     return parser
 
 
@@ -573,7 +918,7 @@ def main() -> int:
 
     train_dataset = build_dataset(train_rows, phase)
     for model_name in parse_split_list(args.models):
-        model = make_model(model_name, args)
+        model = make_model(model_name, args, phase)
         model.fit(train_dataset)
         print(f"{model_name}:")
         for split in parse_split_list(args.eval_splits):
@@ -583,11 +928,17 @@ def main() -> int:
                 continue
             dataset = build_dataset(split_rows, phase)
             metrics, pred = evaluate(model, dataset)
+            sol_boundary_suffix = ""
+            if isinstance(model, SolBoundaryExtrapolationModel):
+                sol_boundary_suffix = (
+                    f" SOLBoundary={model.last_extrapolated_count} SOLMiss={model.last_sol_miss_count}"
+                )
             print(
                 f"  {split}: n={int(metrics['count'])} "
                 f"MAPE={metrics['mape']:.2f}% MdAPE={metrics['mdape']:.2f}% "
                 f"P90={metrics['p90_ape']:.2f}% P95={metrics['p95_ape']:.2f}% "
                 f"P99={metrics['p99_ape']:.2f}% Max={metrics['max_ape']:.2f}%"
+                f"{sol_boundary_suffix}"
             )
             if args.group_by:
                 print_group_metrics(dataset, pred, phase, args.group_by)
