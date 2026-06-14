@@ -115,6 +115,64 @@ The recommended prediction order is:
    Shape-space IDW or nearest-neighbor interpolation may be kept as a baseline
    or fallback, but it is not the preferred main model.
 
+## Algorithm Details
+
+The work-local predictor uses the measured train set directly; there is no
+offline ML training step beyond storing normalized features.
+
+For each query shape:
+
+```text
+1. Build local-neighbor coordinates from shape-level log features.
+2. Find the k nearest measured FPM points in that local space.
+3. If the query exactly matches measured points, return their measured latency.
+4. Compute inverse-distance weights over the k neighbors.
+5. Solve a tiny weighted ridge regression:
+
+   y_neighbor ~= work_features_neighbor @ coef
+
+6. Predict:
+
+   T_work_local = work_features_query @ coef
+
+7. Clip only to a broad observed-latency range to avoid negative or explosive
+   numerical results.
+```
+
+The optional SOL boundary path wraps the base predictor. It only replaces the
+base prediction for extrapolation points that satisfy the configured trigger
+rules:
+
+```text
+1. Compute T_work_local first.
+2. Compute boundary dimensions for the train set and query.
+   Prefill dimensions:
+     batch_size, new_tokens, past_kv_tokens, total_context_tokens,
+     sum_prefill_tokens, batch_total_context_tokens
+   Decode dimensions:
+     batch_size, past_kv_tokens, attention_work_tokens
+3. Check whether any configured trigger dimension is outside the train
+   boundary. If not, return T_work_local.
+4. Unless mixed extrapolation is explicitly enabled, require non-trigger
+   primary dimensions to remain inside the train boundary.
+   Primary dimensions are:
+     prefill: batch_size, new_tokens, past_kv_tokens
+     decode: batch_size, past_kv_tokens
+5. Project the query onto the measured boundary by clipping the violated
+   trigger dimensions to the train min/max boundary and recomputing derived
+   dimensions.
+6. Select the measured boundary row nearest to the projected query in normalized
+   log boundary-coordinate space.
+7. If SOL is missing for the query or boundary row, return T_work_local.
+8. Otherwise freeze boundary efficiency:
+
+   T_pred = T_actual(boundary) * T_sol(query) / T_sol(boundary)
+```
+
+This makes the SOL path cheap: it adds a boundary nearest-neighbor scan and two
+SOL-cache lookups only for points that are outside the selected measured
+boundary.
+
 ## Why Not Global Affine
 
 A single global affine fit is too coarse. Experiments showed that global
