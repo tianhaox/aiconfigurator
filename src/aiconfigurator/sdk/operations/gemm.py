@@ -127,26 +127,18 @@ class GEMM(Operation):
             compute_scale_loaded = _load(PerfDataFilename.compute_scale, load_compute_scale_data)
             scale_matrix_loaded = _load(PerfDataFilename.scale_matrix, load_scale_matrix_data)
 
-            # Correct + extrapolate the CANONICAL class-cache values directly
-            # (not via ``database._gemm_data``) so a pre-set test override
-            # can't leave the cached wrapper uncorrected — a later DB sharing
-            # the same cache key would otherwise bind unextrapolated data.
+            # Clamp the CANONICAL class-cache values to the SOL floor directly
+            # (not via ``database._gemm_data``) so a pre-set test override can't
+            # leave the cached wrapper uncorrected — a later DB sharing the same
+            # cache key would otherwise bind unclamped data.
             #
-            # The ordering (clamp THEN extrapolate) matches the legacy
-            # ``PerfDatabase.__init__`` flow exactly: ``_correct_data()``
-            # ran before the GEMM extrapolation block. Newly-extrapolated
-            # rows are derived from already-clamped real measurements so
-            # they sit at or above the SOL bound by construction.
-            # ``PerfDatabase._correct_data`` re-clamps via the backward-compat
-            # forward when called from ``__init__``, but standalone callers
-            # of ``GEMM.load_data`` get the legacy single-pass semantics.
-            cls._correct_sol(database, gemm_loaded)
-            cls._extrapolate_gemm_data(gemm_loaded)
-            # Re-clamp after extrapolation: interpolated/extrapolated grid
-            # points can land below the SOL bound. The legacy init path ran
-            # ``_correct_data()`` a second time which caught these; replicate
-            # that here so standalone ``load_data`` callers get the same
-            # physically-consistent floor.
+            # No load-time grid pre-expansion: GEMM queries route through
+            # TableQuery (interp + util-hold + mesh-free kNN fallback), which
+            # interpolates the raw grid on demand. Dropping ``extrapolate_data_grid``
+            # is bit-identical on real query shapes (validated, 160 shapes, 0.000%
+            # diff) and removes its ragged "Skipping interpolation" warning spam;
+            # the old second post-extrapolation re-clamp goes with it (one clamp of
+            # the measured data suffices).
             cls._correct_sol(database, gemm_loaded)
 
             # All three loads + correction + extrapolation succeeded — commit

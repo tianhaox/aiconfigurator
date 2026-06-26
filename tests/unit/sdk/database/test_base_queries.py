@@ -113,6 +113,30 @@ def test_query_gemm_supports_legacy_scalar_leaves(mutable_comprehensive_perf_db)
     assert interp.source == "silicon"
 
 
+def test_query_gemm_asymmetric_nk_densification_no_crash(mutable_comprehensive_perf_db):
+    """GEMM interpolates the raw grid at query time (no load-time pre-expansion),
+    so a dense-M anchor at an asymmetric (n,k)=(3072,5120) — which cannot join a
+    Cartesian grid with the coarse shapes without inventing phantom (e.g. (5120,3072))
+    — stays queryable via the mesh-free kNN fallback instead of crashing."""
+    db = mutable_comprehensive_perf_db
+    quant_mode = common.GEMMQuantMode.bfloat16
+    cg = 1e-9
+    data = {}
+    for m in (256, 4096):
+        for n in (2048, 4096):
+            for k in (2048, 4096):
+                data.setdefault(m, {}).setdefault(n, {})[k] = cg * m * n * k
+    for m in (512, 1024, 2048):  # asymmetric dense-M anchor at one real (n,k)
+        data.setdefault(m, {}).setdefault(3072, {})[5120] = cg * m * 3072 * 5120
+    db._gemm_data[quant_mode] = data
+    db.query_gemm.cache_clear()
+
+    # m=300 forces the M-axis bracket to cross the coarse m=256, which has no
+    # (3072,5120) slice -> grid interp can't reach it; the fallback resolves it.
+    result = db.query_gemm(300, 3072, 5120, quant_mode, database_mode=common.DatabaseMode.SILICON)
+    assert math.isfinite(float(result)) and float(result) > 0
+
+
 def test_query_trtllm_alltoall_normalizes_fp8_block_lookup(stub_perf_db):
     """
     fp8_block reuses the fp8 TRT-LLM alltoall perf tables.
