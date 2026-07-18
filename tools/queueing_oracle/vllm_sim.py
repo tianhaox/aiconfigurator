@@ -456,14 +456,19 @@ class VllmSimCore:
         if not ready:
             return 0.0, []
 
-        if self.args.worker_type == "prefill":
-            # first (and only) token is produced by the prefill pass itself
+        # decode rows exclude prefill completers (generated == 0): the fused
+        # pass samples their first token off the final chunk's logits — no
+        # extra decode-row cost. Their token still lands at pass end.
+        decode_rows = [r for r in ready if r.generated >= 1]
+        if self.args.worker_type == "prefill" or not decode_rows:
+            # prefill worker: the first (and only) token is produced by the
+            # prefill pass itself; agg: a completer-only pass adds no decode cost
             decode_ms = 0.0
         else:
             active_kv_tokens = self.kv.num_active_blocks * self.kv.block_size
             total_kv_tokens = self.kv.capacity * self.kv.block_size
-            context_length = sum(r.seq_len() for r in ready) // len(ready)
-            decode_ms = self.perf.decode_ms(len(ready), active_kv_tokens, context_length, total_kv_tokens)
+            context_length = sum(r.seq_len() for r in decode_rows) // len(decode_rows)
+            decode_ms = self.perf.decode_ms(len(decode_rows), active_kv_tokens, context_length, total_kv_tokens)
         decode_end = decode_start_ms + decode_ms
 
         emissions = []
