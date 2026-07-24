@@ -15,16 +15,20 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 pub const ENGINE_CONFIG_SCHEMA_VERSION: u32 = 1;
-// Bumped to 2 for the 0.10.0 op-payload layout change (context-parallelism +
-// perf-DB refactor added serialized fields such as `seq_split` / `cp_size` to
-// `OpSpec`). bincode op payloads are positional, so a producer/consumer skew is
-// only distinguishable by this version — `EngineSpec::from_bincode` reads and
+// bincode op payloads are positional, so a producer/consumer skew is only
+// distinguishable by this version — `EngineSpec::from_bincode` reads and
 // checks it before decoding the op lists. Bump whenever an `OpSpec` field
 // changes; keep in lockstep with `sdk/engine.py::ENGINE_SPEC_SCHEMA_VERSION`.
-// Bumped to 3 by #1405's MTP-acceptance field removal, and to 4 when the
-// `Msa{Context,Generation}` variants (bincode enum indices after
-// `DsaGeneration` shifted) merged on top of that — the two changes each
-// claimed version 3 independently, so their combination needs a fresh number.
+// History:
+// - 2 (v0.10.0): op-payload layout change — the context-parallelism +
+//   perf-DB refactor added serialized fields such as `seq_split` /
+//   `cp_size` to `OpSpec`.
+// - 3 (PR #1405): MTP acceptance moved above aic-core —
+//   `nextn_accept_rates` removed from the spec payload.
+// - 4 (PR #1355): `Msa{Context,Generation}` variants inserted (bincode enum
+//   indices after `DsaGeneration` shifted). The MSA insertion and #1405
+//   each claimed version 3 on their own branch, so their merge needed a
+//   fresh number.
 pub const ENGINE_SPEC_SCHEMA_VERSION: u32 = 4;
 
 /// Static engine identity and setup information carried by an

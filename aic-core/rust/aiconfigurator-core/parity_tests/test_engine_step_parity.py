@@ -1332,7 +1332,7 @@ def _rust_static_breakdown(case: EngineStepParityCase):
 
 
 class TestRustTypedErrorsAcrossFfi:
-    """FFI typed-error contract (audit finding #8): `aic_to_py` used to map
+    """FFI typed-error contract: `aic_to_py` used to map
     every `AicError` to `ValueError`, so Python-side classifiers
     (`perf_database.has_perf_data_not_available_cause`, the support-matrix
     HYBRID-miss triage on `EmpiricalNotImplementedError`) could not recognize
@@ -1381,7 +1381,7 @@ class TestRustTypedErrorsAcrossFfi:
 
 
 class TestRustProvenanceCapture:
-    """FFI provenance contract (audit finding #6): the compiled engine records
+    """FFI provenance contract: the compiled engine records
     the empirical tier that fired (max-rank, mirroring Python's
     `PROVENANCE_ORDER`) and the bridge forwards it into
     `util_empirical.capture_provenance`, so support-matrix HYBRID_PASS tier

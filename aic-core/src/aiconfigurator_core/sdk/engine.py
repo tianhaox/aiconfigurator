@@ -90,13 +90,18 @@ from aiconfigurator_core.sdk.rust_engine_step import (
 
 # Schema versions must match the Rust crate constants
 # (`ENGINE_SPEC_SCHEMA_VERSION` / `ENGINE_CONFIG_SCHEMA_VERSION` in `lib.rs`).
-# ENGINE_SPEC bumped to 2 for the 0.10.0 op-payload layout change (CP + perf-DB
-# refactor added serialized `OpSpec` fields), to 3 by #1405's MTP-acceptance
-# field removal, and to 4 when the MSA op variants (bincode enum indices after
-# `DsaGeneration` shifted) merged on top of that — the two changes each claimed
-# version 3 independently, so their combination needs a fresh number; the Rust
-# consumer gates on this version before decoding the positional op lists. Keep
-# in lockstep with the Rust `ENGINE_SPEC_SCHEMA_VERSION`.
+# bincode op payloads are positional, so a producer/consumer skew is only
+# distinguishable by this version; the Rust consumer gates on it before
+# decoding the op lists. ENGINE_SPEC history:
+#
+# - 2 (v0.10.0): op-payload layout change — the CP + perf-DB refactor added
+#   serialized `OpSpec` fields such as `seq_split` / `cp_size`.
+# - 3 (PR #1405): MTP acceptance moved above aic-core — `nextn_accept_rates`
+#   removed from the spec payload.
+# - 4 (PR #1355): `Msa{Context,Generation}` op variants inserted (bincode
+#   enum indices after `DsaGeneration` shifted). The MSA insertion and #1405
+#   each claimed version 3 on their own branch, so their merge needed a
+#   fresh number.
 ENGINE_SPEC_SCHEMA_VERSION = 4
 ENGINE_CONFIG_SCHEMA_VERSION = 1
 
