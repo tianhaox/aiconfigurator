@@ -230,31 +230,3 @@ pub(crate) fn get_mix_step_breakdown(
         decode_attention_ms,
     })
 }
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn get_mix_step_ops(
-    context_ops: &[Op],
-    generation_ops: &[Op],
-    db: &PerfDatabase,
-    ctx_tokens: u32,
-    gen_tokens: u32,
-    new_tokens_per_prefill_req: u32,
-    prefix_per_req: u32,
-    combined_prefix: u32,
-    kv_per_decode_req: u32,
-    decode_batch: u32,
-) -> Result<f64, AicError> {
-    Ok(get_mix_step_breakdown(
-        context_ops,
-        generation_ops,
-        db,
-        ctx_tokens,
-        gen_tokens,
-        new_tokens_per_prefill_req,
-        prefix_per_req,
-        combined_prefix,
-        kv_per_decode_req,
-        decode_batch,
-    )?
-    .total_ms())
-}

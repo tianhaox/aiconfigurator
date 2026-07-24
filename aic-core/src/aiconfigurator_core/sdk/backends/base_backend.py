@@ -1277,10 +1277,15 @@ class BaseBackend:
         per_ops_data: dict[str, dict] = {}
         per_ops_source: dict[str, dict] = {}
 
+        # run_mixed derives isl from runtime_config, which holds the text-only
+        # isl; pass the image-augmented effective isl so the mixed step sees the
+        # same sequence length as the genonly step below (multimodal parity).
+        mixed_runtime_config = copy.copy(runtime_config)
+        mixed_runtime_config.isl = isl
         mix_step_estimate = self.run_mixed(
             model,
             database,
-            runtime_config,
+            mixed_runtime_config,
             MixedStepInput(
                 context_tokens=num_mix_ctx_tokens,
                 num_decode_requests=num_mix_gen_tokens,
@@ -1491,6 +1496,9 @@ class BaseBackend:
         summary.set_per_ops_source(per_ops_source)
         summary.set_step_estimates(
             {
+                # Raw run_mixed output (pre-mix_efficiency); the authoritative
+                # scheduled latency is scheduling["mix_step_latency_ms"], which
+                # already includes the mix_efficiency scale.
                 "mixed": mix_step_estimate,
                 "scheduling": dict(per_ops_data["scheduling"]),
             }
@@ -1504,6 +1512,11 @@ class BaseBackend:
     ) -> InferenceSummary:
         """
         Find the best agg result under constraints.
+
+        Note: this legacy sweep is not speculation-aware — it never forwards
+        ``decode_tokens_per_iteration`` to :meth:`run_agg`, so its TPOT filter
+        compares unprojected values. Speculative workloads should use the
+        ``sweep.py`` path via ``predict_agg_worker``.
 
         Args:
             model: the model to be tested

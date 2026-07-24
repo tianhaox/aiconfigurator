@@ -289,6 +289,14 @@ def _sweep_one_parallel_agg(
     b_list = [b for b in _DEFAULT_AGG_BATCH_SCHEDULE if b <= max_batch_size]
     ctx_tokens_list = _agg_ctx_tokens_list(isl, ctx_stride, enable_chunked_prefill)
 
+    # Mirror run_agg's scheduling boundary: with speculative decoding the
+    # decode phase spans decode_iterations = 1 + (osl - 1) / progress engine
+    # iterations, not osl. The dedup key below must group points the same way
+    # run_agg caps them, or distinct points get skipped as "equivalent".
+    # Without a profile progress is 1.0 and decode_iterations == osl (legacy).
+    _progress = speculative_profile.tokens_per_iteration if speculative_profile else 1.0
+    decode_iterations = 1.0 + max(osl - 1, 0) / _progress
+
     results_dict_list: list[dict] = []
     results_per_ops_source: list[dict | None] = []
     capped_b: list[int] = []
@@ -304,7 +312,7 @@ def _sweep_one_parallel_agg(
                 break
 
             # Skip equivalent gen_tokens slices to avoid recomputing the same point.
-            balance_score = isl * b / ctx_tokens / osl
+            balance_score = isl * b / ctx_tokens / decode_iterations
             if balance_score > 1:
                 gen_tokens = b // balance_score
                 if gen_tokens > 1 and gen_tokens in capped_b:

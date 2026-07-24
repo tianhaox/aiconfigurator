@@ -99,6 +99,20 @@ def test_aggregate_projection_does_not_double_apply_scheduler_progress():
     assert projected.get_result_dict()["tokens/s"] == 45.0
 
 
+def test_aggregate_projection_never_stacks_on_mismatched_scheduler_progress(caplog):
+    """If run_agg already applied a different progress, the scheduler value is
+    authoritative: re-scaling on top would compound two different speedups."""
+    original = _summary()
+    original.set_step_estimates({"scheduling": {"decode_tokens_per_iteration": 1.5}})
+
+    with caplog.at_level("WARNING", logger="aiconfigurator.sdk.speculative"):
+        projected = SpeculativeDecodingProfile(1.0).project_summary(original, role="agg")
+
+    assert projected.get_result_dict()["tpot"] == 10.0
+    assert projected.get_result_dict()["tokens/s"] == 45.0
+    assert any("decode_tokens_per_iteration" in record.message for record in caplog.records)
+
+
 def test_aggregate_projection_reapplies_vllm_little_law_cap():
     original = _summary()
     frame = original.get_summary_df().copy()

@@ -22,9 +22,7 @@ use crate::common::error::AicError;
 use crate::engine::spec::EngineSpec;
 use crate::operators::Op;
 use crate::perf_database::PerfDatabase;
-use crate::session::{
-    get_mix_step_breakdown, get_mix_step_ops, run_context_ops, run_generation_ops_step,
-};
+use crate::session::{get_mix_step_breakdown, run_context_ops, run_generation_ops_step};
 use crate::{validate_forward_pass_metrics, ForwardPassMetrics};
 
 /// Per-call runtime inputs. Field-for-field mirror of the Python
@@ -315,7 +313,7 @@ impl Engine {
     ///
     /// The packing reproduces the bridge's FPM build + the session unpack in
     /// `session::rank_latency_ms`, then calls the shared
-    /// [`get_mix_step_ops`] composition over this engine's op lists:
+    /// [`get_mix_step_breakdown`] composition over this engine's op lists:
     ///
     /// ```text
     /// // prefill chunk (FPM build)
@@ -325,7 +323,7 @@ impl Engine {
     /// // decode (FPM build, with the (nextn+1) MTP multiplier)
     /// eff_gen     = gen_tokens * (nextn + 1)
     /// kv_total    = eff_gen * (isl + osl/2)
-    /// // session unpack -> get_mix_step_ops args
+    /// // session unpack -> get_mix_step_breakdown args
     /// new_tokens_per_req = new_prefill / n_prefill
     /// prefix_per_req     = cached_total / n_prefill
     /// combined_prefix    = cached_total
@@ -438,7 +436,7 @@ impl Engine {
     /// per-iteration counts, so the `(nextn + 1)` MTP multiplier is NOT applied
     /// here (it is already baked into the scheduled-decode counts the engine
     /// emitted). The dispatch reuses the shared [`run_context_ops`] /
-    /// [`run_generation_ops_step`] / [`get_mix_step_ops`] free fns so this path
+    /// [`run_generation_ops_step`] / [`get_mix_step_breakdown`] free fns so this path
     /// and the live engine-step path stay numerically identical.
     pub fn forward_pass_time_ms(
         &self,
@@ -464,7 +462,7 @@ impl Engine {
 
     /// Dispatch one rank's FPM on its scheduled workload. Literal port of
     /// `SessionEstimator::rank_latency_ms` (520dcfff `session.rs:308`):
-    /// prefill+decode -> mix step ([`get_mix_step_ops`]); prefill-only ->
+    /// prefill+decode -> mix step ([`get_mix_step_breakdown`]); prefill-only ->
     /// [`run_context_ops`]; decode-only -> [`run_generation_ops_step`]. The FPM
     /// counts pass through unscaled (no `nextn` multiplier — see
     /// [`Self::forward_pass_time_ms`]).
@@ -485,7 +483,7 @@ impl Engine {
             let kv_per_req = sched.sum_decode_kv_tokens / n_decode;
             let ctx_tokens = sched.sum_prefill_tokens;
             let gen_tokens = sched.num_decode_requests;
-            return get_mix_step_ops(
+            return Ok(get_mix_step_breakdown(
                 &self.context_ops,
                 &self.generation_ops,
                 &self.db,
@@ -496,7 +494,8 @@ impl Engine {
                 sched.sum_prefill_kv_tokens,
                 kv_per_req,
                 n_decode,
-            );
+            )?
+            .total_ms());
         }
 
         let mut total = 0.0_f64;

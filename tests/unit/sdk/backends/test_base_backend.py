@@ -360,6 +360,56 @@ def test_run_agg_rejects_invalid_speculative_progress(
         )
 
 
+def test_run_agg_passes_effective_multimodal_isl_to_run_mixed(
+    monkeypatch,
+    backend: BaseBackend,
+    model,
+    database,
+) -> None:
+    """Regression: run_mixed derives isl from runtime_config, which holds the
+    text-only isl. run_agg must hand it the image-augmented effective isl so
+    the mixed step and the genonly step see the same sequence length."""
+    model.encoder_config = common.VisionEncoderConfig(
+        depth=1,
+        hidden_size=8,
+        num_heads=1,
+        intermediate_size=8,
+        patch_size=14,
+        temporal_patch_size=1,
+        spatial_merge_size=2,
+        out_hidden_size=8,
+    )
+
+    mixed_isl: list[int] = []
+
+    def _run_mixed(model_arg, database_arg, runtime_config_arg, step):
+        mixed_isl.append(runtime_config_arg.isl)
+        return StepEstimate(latency_ms=1.0, energy_wms=1.0)
+
+    genonly_isl: list[int] = []
+
+    def _genonly(model_arg, database_arg, runtime_config_arg, num_tokens, isl, osl):
+        genonly_isl.append(isl)
+        return (1.0, 1.0, {}, {})
+
+    monkeypatch.setattr(backend, "run_mixed", _run_mixed)
+    monkeypatch.setattr(backend, "_get_genonly_step_latency", _genonly)
+
+    runtime_config = RuntimeConfig(
+        batch_size=2,
+        beam_width=1,
+        isl=8,
+        osl=5,
+        num_images_per_request=1,
+        num_image_tokens=16,
+    )
+    backend.run_agg(model, database, runtime_config, ctx_tokens=8)
+
+    assert mixed_isl == [8 + 16]
+    assert genonly_isl == [8 + 16]
+    assert runtime_config.isl == 8  # the caller's config must stay untouched
+
+
 def test_mixed_step_requires_context_tokens() -> None:
     with pytest.raises(ValueError, match="context_tokens"):
         MixedStepInput(context_tokens=0, num_decode_requests=1)
