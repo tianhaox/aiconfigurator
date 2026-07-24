@@ -37,7 +37,9 @@ def perf_database():
 
     # Purge already-imported site-packages version if present
     for key in list(sys.modules.keys()):
-        if key == "aiconfigurator" or key.startswith("aiconfigurator."):
+        if key in {"aiconfigurator", "aiconfigurator_core"} or key.startswith(
+            ("aiconfigurator.", "aiconfigurator_core.")
+        ):
             saved_aiconfigurator_modules[key] = sys.modules.pop(key)
 
     import aiconfigurator.sdk.perf_database as perf_database
@@ -45,7 +47,14 @@ def perf_database():
     importlib.reload(perf_database)
     yield perf_database
 
-    # Restore aiconfigurator modules after the tests in this file finish.
+    # Drop the isolated legacy/canonical module pair, then restore both module
+    # graphs together so imported class references in other test modules do not
+    # point at a reloaded canonical implementation.
+    for key in list(sys.modules.keys()):
+        if key in {"aiconfigurator", "aiconfigurator_core"} or key.startswith(
+            ("aiconfigurator.", "aiconfigurator_core.")
+        ):
+            sys.modules.pop(key)
     sys.modules.update(saved_aiconfigurator_modules)
 
 
@@ -583,10 +592,10 @@ def test_clear_database_runtime_caches_clears_matching_cached_database_once(perf
     cache_snapshot = dict(perf_database.databases_cache)
     try:
         perf_database.databases_cache.clear()
-        perf_database.databases_cache[("root", "system", False)]["backend"]["1.0.0"] = clear_db
-        perf_database.databases_cache[("root", "system", True)]["backend"]["1.0.0"] = clear_db
-        perf_database.databases_cache[("root", "system", False)]["backend"]["2.0.0"] = keep_db
-        perf_database.databases_cache[("root", "other-system", False)]["backend"]["1.0.0"] = keep_db
+        perf_database.databases_cache[("root", "system", False, False)]["backend"]["1.0.0"] = clear_db
+        perf_database.databases_cache[("root", "system", True, False)]["backend"]["1.0.0"] = clear_db
+        perf_database.databases_cache[("root", "system", False, False)]["backend"]["2.0.0"] = keep_db
+        perf_database.databases_cache[("root", "other-system", False, False)]["backend"]["1.0.0"] = keep_db
 
         perf_database.clear_database_runtime_caches("system", "backend", "1.0.0")
 
@@ -610,15 +619,15 @@ def test_unload_database_removes_matching_database_and_clears_runtime_cache(perf
     cache_snapshot = dict(perf_database.databases_cache)
     try:
         perf_database.databases_cache.clear()
-        perf_database.databases_cache[("root", "system", False)]["backend"]["1.0.0"] = unload_db
-        perf_database.databases_cache[("root", "system", False)]["backend"]["2.0.0"] = keep_db
-        perf_database.databases_cache[("root", "other-system", False)]["backend"]["1.0.0"] = keep_db
+        perf_database.databases_cache[("root", "system", False, False)]["backend"]["1.0.0"] = unload_db
+        perf_database.databases_cache[("root", "system", False, False)]["backend"]["2.0.0"] = keep_db
+        perf_database.databases_cache[("root", "other-system", False, False)]["backend"]["1.0.0"] = keep_db
 
         perf_database.unload_database("system", "backend", "1.0.0")
 
         assert unload_db.clear_count == 1
-        assert perf_database.databases_cache[("root", "system", False)]["backend"] == {"2.0.0": keep_db}
-        assert perf_database.databases_cache[("root", "other-system", False)]["backend"]["1.0.0"] is keep_db
+        assert perf_database.databases_cache[("root", "system", False, False)]["backend"] == {"2.0.0": keep_db}
+        assert perf_database.databases_cache[("root", "other-system", False, False)]["backend"]["1.0.0"] is keep_db
     finally:
         perf_database.databases_cache.clear()
         perf_database.databases_cache.update(cache_snapshot)

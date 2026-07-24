@@ -17,6 +17,9 @@ silently for the model families we explicitly own. Each test owns
 exactly one family.
 """
 
+import ast
+import inspect
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -26,7 +29,21 @@ pytestmark = pytest.mark.unit
 # runtime, so this is purely a test-environment shim.
 pytest.importorskip("gradio")
 
+from aiconfigurator.webapp.events import event_fn
 from aiconfigurator.webapp.events.event_fn import EventFn
+
+
+def test_model_config_calls_do_not_receive_acceptance_assumption():
+    """The webapp keeps acceptance above the aic-core ModelConfig boundary."""
+    tree = ast.parse(inspect.getsource(event_fn))
+    model_config_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "ModelConfig"
+    ]
+
+    assert model_config_calls
+    assert all("nextn_accepted" not in {keyword.arg for keyword in call.keywords} for call in model_config_calls)
 
 
 class TestUpdateModelRelatedComponents:
@@ -34,7 +51,7 @@ class TestUpdateModelRelatedComponents:
 
     def test_gemma4mix_shows_moe_controls(self):
         """`google/gemma-4-26B-A4B` resolves to the GEMMA4MIX family and is MoE,
-        so every MoE-related control (nextn, accept_rates, enable_wideep,
+        so every MoE-related control (nextn, nextn_accepted, enable_wideep,
         moe_quant_mode, moe_tp_size, moe_ep_size, dp_size) must render visible.
         """
         result = EventFn.update_model_related_components("google/gemma-4-26B-A4B")

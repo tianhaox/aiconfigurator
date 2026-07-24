@@ -231,8 +231,9 @@ def test_run_afd_estimate_passes_prefix_and_nextn(monkeypatch):
             captured["a_model_config"] = kwargs["a_model_config"]
             captured["f_model_config"] = kwargs["f_model_config"]
 
-        def run_afd(self, runtime_config, **_kwargs):
+        def run_afd(self, runtime_config, **kwargs):
             captured["runtime_config"] = runtime_config
+            captured["speculative_profile"] = kwargs["speculative_profile"]
             summary = InferenceSummary(runtime_config)
             summary.set_oom(False)
             summary.set_result_dict(
@@ -286,14 +287,15 @@ def test_run_afd_estimate_passes_prefix_and_nextn(monkeypatch):
         max_seq_len=None,
         prefix=32,
         nextn=2,
-        nextn_accept_rates=[0.85, 0.3],
+        nextn_accepted=0.85,
     )
 
     assert captured["runtime_config"].prefix == 32
     assert captured["a_model_config"].nextn == 2
     assert captured["f_model_config"].nextn == 2
-    assert captured["a_model_config"].nextn_accept_rates == [0.85, 0.3]
-    assert captured["f_model_config"].nextn_accept_rates == [0.85, 0.3]
+    assert not hasattr(captured["a_model_config"], "nextn_accepted")
+    assert not hasattr(captured["f_model_config"], "nextn_accepted")
+    assert captured["speculative_profile"].expected_accepted_tokens == 0.85
 
 
 def test_afd_prefill_uses_uncached_prefix_suffix_for_token_math(monkeypatch):
