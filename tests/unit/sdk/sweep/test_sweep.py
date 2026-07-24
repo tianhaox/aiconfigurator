@@ -204,6 +204,17 @@ def test_sweep_agg_dedup_key_follows_speculative_decode_iterations(monkeypatch):
 
     assert inactive == baseline
     assert speculative != baseline
+    # Hand-checked boundary point at isl=ctx_tokens=1024. Baseline
+    # (decode_iterations = osl = 4): b=4 gives balance_score = 4/4 = 1, not
+    # > 1, so the point is evaluated. Speculative (decode_iterations =
+    # 1 + 3/2 = 2.5): b=3 gives balance 1.2 -> capped gen 3//1.2 = 2, and
+    # b=4 gives balance 1.6 -> capped gen 4//1.6 = 2, a duplicate of b=3's
+    # group, so b=4 must be skipped.
+    assert (4, 1024) in baseline
+    assert (3, 1024) in speculative
+    assert (4, 1024) not in speculative
+    # Points are swept once each; dedup must never re-evaluate a point.
+    assert len(speculative) == len(set(speculative))
 
 
 # ---------------------------------------------------------------------------
