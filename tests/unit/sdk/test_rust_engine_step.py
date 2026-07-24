@@ -91,6 +91,7 @@ def test_mixed_and_decode_helpers_pass_raw_step_args(monkeypatch) -> None:
     """The mixed / decode helpers pass raw step args straight to the handle;
     the Rust engine owns the FPM packing."""
     mixed_calls = []
+    breakdown_calls = []
     decode_calls = []
 
     class _FakeHandle:
@@ -99,6 +100,7 @@ def test_mixed_and_decode_helpers_pass_raw_step_args(monkeypatch) -> None:
             return 8.5
 
         def mixed_step_breakdown(self, *args):
+            breakdown_calls.append(args)
             return 8.5, 5.0, 2.0, 1.5
 
         def decode_step_latency(self, *args):
@@ -146,6 +148,7 @@ def test_mixed_and_decode_helpers_pass_raw_step_args(monkeypatch) -> None:
         "context_attention": 2.0,
         "decode_attention": 1.5,
     }
+    assert breakdown_calls == [(384, 7, 256, 256, 128)]
 
 
 def test_engine_config_json_preserves_moe_specific_quant_mode() -> None:
