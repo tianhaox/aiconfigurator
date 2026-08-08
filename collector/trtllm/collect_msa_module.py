@@ -16,10 +16,23 @@ Uses TRT-LLM's own modeling code (``MiniMaxM3DecoderLayer`` →
 weights, then extracts the attention module for benchmarking — the same
 framework-builder approach as ``collect_mla_module.py``.
 
-The M3 sparse backend at 1.3.0rc20 is Python + Triton
-(attention_backend/sparse/minimax_m3/kernels.py, adapted from SGLang) with no
-SM gate — hardware-validated on SM90 (H20-3e); other SMs carry registry
-``unverified_sms`` markers until validated.
+The M3 sparse backend has two framework implementations, and this collector
+follows whichever one the framework's own dispatch resolves:
+
+* Triton reference (rc19/rc20 only path; rc23 ``implementation="triton"``):
+  Python + Triton (sparse/minimax_m3/kernels.py@1.3.0rc20, split into
+  triton_backend.py/triton_metadata.py@1.3.0rc23, adapted from SGLang), no SM
+  gate — hardware-validated on SM90 (H20-3e). Its metadata contract is the
+  prebuilt ``attn_metadata.minimax_m3`` dict attachment.
+* MSA / fmha_sm100 (1.3.0rc23 ``implementation="msa"``, SM100/103 only):
+  ``MiniMaxM3MsaSparseAttention`` on the TrtllmAttention stack
+  (sparse/minimax_m3/msa_backend.py@1.3.0rc23). Its metadata is a
+  ``TrtllmAttentionMetadata`` subclass carrying flat CUDA-graph-stable MSA
+  buffers — there is no ``minimax_m3`` attachment on this path.
+
+``create_kv_cache_and_metadata`` detects the resolved Metadata class (never
+the version string) and validates the matching contract; ``kernel_source``
+records which backend actually ran.
 
 Supported models and micro-sweeps come from collector v2 YAML
 (``cases/models/MiniMaxM3ForCausalLM_cases.yaml`` `mla_module` rows with
@@ -31,7 +44,9 @@ Usage:
 """
 
 import argparse
+import dataclasses
 import gc
+import inspect
 import os
 import sys
 import traceback
@@ -488,6 +503,47 @@ def create_msa_attention_layer(
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _resolve_msa_metadata_cls():
+    """Return the MSA (fmha_sm100) Metadata class, or None where the framework
+    has no MSA backend.
+
+    1.3.0rc23 split the M3 package into triton_backend/triton_metadata (the
+    old Triton path) and msa_backend (the fmha_sm100 path); rc19/rc20 ship
+    neither module nor the ``implementation`` knob. Import-probe the module
+    instead of sniffing the version string.
+    """
+    try:
+        from tensorrt_llm._torch.attention_backend.sparse.minimax_m3.msa_backend import (
+            MiniMaxM3MsaSparseAttentionMetadata,
+        )
+    except ImportError:  # rc19/rc20 layout — Triton contract only
+        return None
+    return MiniMaxM3MsaSparseAttentionMetadata
+
+
+def _resolve_attention_backend_cls(model_config: ModelConfig):
+    """Resolve the sparse attention backend class exactly like serving.
+
+    1.3.0rc23 lowers the llm_args config into SparseParams first and passes
+    ``sparse_params`` (model_engine.py:592-596@1.3.0rc23); the factory then
+    routes ``implementation == "msa"`` to MiniMaxM3MsaSparseAttention after
+    ensure_msa_available() (sparse/utils.py:45-60@1.3.0rc23) and everything
+    else to the Triton reference. rc19/rc20 pass the llm_args config itself
+    (model_engine.py:497-499@1.3.0rc20). Probe get_attention_backend's real
+    signature so the framework's own dispatch stays the selector on both
+    lines.
+    """
+    if "sparse_params" in inspect.signature(get_attention_backend).parameters:
+        sparse_params = model_config.sparse_attention_config.to_sparse_params(
+            pretrained_config=model_config.pretrained_config
+        )
+        return get_attention_backend(model_config.attn_backend, sparse_params=sparse_params)
+    return get_attention_backend(
+        model_config.attn_backend,
+        sparse_attention_config=model_config.sparse_attention_config,
+    )
+
+
 def create_kv_cache_and_metadata(
     model_config: ModelConfig,
     batch_size: int,
@@ -500,23 +556,55 @@ def create_kv_cache_and_metadata(
     utilities, mirroring serving's construction.
 
     Cache manager: get_kv_cache_manager_cls routes sparse-attention models to
-    MiniMaxM3KVCacheManagerV2 (pyexecutor/_util.py:75-94@1.3.0rc20); kwargs
-    mirror the generic non-MLA branch (_util.py:1859-1888): CacheType.SELF
-    (:1539), per-layer num_kv_heads list, tokens_per_block 32,
+    MiniMaxM3KVCacheManagerV2 (pyexecutor/_util.py:75-94@1.3.0rc20;
+    :90-166@1.3.0rc23 — at rc23 the manager is shared by the Triton and MSA
+    backends, sparse/minimax_m3/__init__.py); kwargs mirror the generic
+    non-MLA branch (_util.py:1859-1888@1.3.0rc20; :2079-2105@1.3.0rc23):
+    CacheType.SELF, per-layer num_kv_heads list, tokens_per_block 32,
     sparse_attention_config + pretrained_config forwarded. The single
     benchmark layer is declared sparse explicitly (sparse_layer_ids=[0]) —
     the manager's num_layers-based default assumes the full checkpoint's
-    "first 3 dense" convention (sparse/minimax_m3/cache_manager.py:162-166)
-    which does not apply to a one-layer build.
+    "first 3 dense" convention (sparse/minimax_m3/cache_manager.py:162-166
+    @1.3.0rc20; :170-176@1.3.0rc23) which does not apply to a one-layer
+    build.
 
-    Metadata: the M3 backend's Metadata class builds the sparse runtime
-    metadata inside prepare() from the standard AttentionMetadata fields
-    (sparse/minimax_m3/metadata.py:776-902@1.3.0rc20): seq_lens carries the
-    current chunk's new-token counts, the cached prefix travels via
-    kv_cache_params.num_cached_tokens_per_seq, and kv_lens = cached +
-    seq_lens is derived internally (:842-845) — the same
-    current-chunk-only prompt_lens semantics as serving
-    (model_engine.py:2986-3017@1.3.0rc20).
+    Metadata: the resolved backend's Metadata class builds the sparse runtime
+    metadata inside prepare() from the standard AttentionMetadata fields:
+    seq_lens carries the current chunk's new-token counts, the cached prefix
+    travels via kv_cache_params.num_cached_tokens_per_seq, and kv_lens =
+    cached + seq_lens is derived internally — the same current-chunk-only
+    prompt_lens semantics as serving (model_engine.py:2986-3017@1.3.0rc20).
+    Two framework contracts exist, discriminated by the resolved Metadata
+    class (never the version string):
+
+    * Triton (rc19/rc20; rc23 implementation="triton"): prepare() attaches
+      the prebuilt runtime metadata + out_cache_loc as the
+      ``attn_metadata.minimax_m3`` dict (metadata.py:899-902@1.3.0rc20;
+      unchanged at rc23: triton_metadata.py:860-864, kv_lens derivation
+      :842-845 both versions), which the model layer's
+      _sparse_attention_core reads (modeling_minimaxm3.py:1265-1275
+      @1.3.0rc23).
+    * MSA / fmha_sm100 (rc23 implementation="msa"): the Metadata subclasses
+      TrtllmAttentionMetadata; __post_init__ reads sparse_metadata_params
+      and allocates flat CUDA-graph-stable buffers (msa_backend.py:245-249,
+      296-348@1.3.0rc23), prepare() fills the cache-write buffers
+      (_build_msa_fields, :549-609, setting _msa_fields_ready) and, for a
+      pure generation batch, the graph-safe fmha_sm100 decode plans
+      (_build_decode_plans, :428-547; prefill/mixed leave the plans None
+      and run eagerly). The model layer consumes it via run_indexer +
+      the inherited TrtllmAttention forward (modeling_minimaxm3.py:
+      1130-1141@1.3.0rc23).
+
+    Serving passes max_num_sequences / num_heads_per_kv /
+    sparse_metadata_params when constructing the Metadata on both lines
+    (model_engine.py:2474-2487@1.3.0rc23; :1810-1830@1.3.0rc20, where the M3
+    config's to_sparse_metadata_params is the base-class None). Those kwargs
+    are mirrored here, field-presence-probed to keep the rc19 claim honest.
+
+    Returns (kv_cache_manager, attn_metadata, kernel_source) where
+    kernel_source records the resolved backend: "msa_fmha_sm100" for the MSA
+    path, "default" for the Triton reference (the label the H20 rc20 dataset
+    already carries).
     """
     config = model_config.pretrained_config
     mapping = model_config.mapping
@@ -580,12 +668,38 @@ def create_kv_cache_and_metadata(
             f"resource allocation failed"
         )
 
-    attention_cls = get_attention_backend(
-        model_config.attn_backend,
-        model_config.sparse_attention_config,
-    )
+    attention_cls = _resolve_attention_backend_cls(model_config)
+    metadata_cls = attention_cls.Metadata
+    msa_metadata_cls = _resolve_msa_metadata_cls()
+    is_msa = msa_metadata_cls is not None and issubclass(metadata_cls, msa_metadata_cls)
 
-    attn_metadata = attention_cls.Metadata(
+    # Serving-parity Metadata kwargs (model_engine.py:2474-2487@1.3.0rc23;
+    # :1810-1830@1.3.0rc20), field-presence-probed for rc19:
+    #   max_num_sequences = batch_size * max_beam_width, beam width 1 here;
+    #   num_heads_per_kv  = GQA ratio (model_engine.py:2428-2440@1.3.0rc23) —
+    #     computed from the (TP-shard-emulated) pretrained_config like serving
+    #     computes it from its config;
+    #   sparse_metadata_params carries the MSA sparse geometry the rc23 MSA
+    #     metadata's __post_init__ reads (msa_backend.py:245-249); the rc20 M3
+    #     config inherits the base to_sparse_metadata_params -> None
+    #     (llm_args.py:570-572@1.3.0rc20), matching the field default.
+    init_field_names = {f.name for f in dataclasses.fields(metadata_cls) if f.init}
+    serving_metadata_kwargs = {}
+    if "max_num_sequences" in init_field_names:
+        serving_metadata_kwargs["max_num_sequences"] = batch_size
+    if "num_heads_per_kv" in init_field_names:
+        num_q_heads = int(getattr(config, "num_attention_heads", 0) or 0)
+        serving_metadata_kwargs["num_heads_per_kv"] = (
+            num_q_heads // num_kv_heads if num_q_heads and num_kv_heads else 1
+        )
+    if "sparse_metadata_params" in init_field_names:
+        serving_metadata_kwargs["sparse_metadata_params"] = (
+            model_config.sparse_attention_config.to_sparse_metadata_params(
+                pretrained_config=config
+            )
+        )
+
+    attn_metadata = metadata_cls(
         max_num_requests=batch_size,
         max_num_tokens=total_tokens,
         kv_cache_manager=kv_cache_manager,
@@ -608,16 +722,43 @@ def create_kv_cache_and_metadata(
             cache_reuse=bool(is_context and prefix_len > 0),
         ),
         all_rank_num_tokens=None,
+        **serving_metadata_kwargs,
     )
 
     attn_metadata.prepare()
-    if getattr(attn_metadata, "minimax_m3", None) is None:
-        raise RuntimeError(
-            "MiniMaxM3AttentionMetadata.prepare() did not build the minimax_m3 "
-            "attachment; the KV cache manager is not the M3 sparse manager"
-        )
+    if is_msa:
+        # MSA contract: prepare() must have populated the flat cache-write
+        # buffers (msa_backend.py:549-609@1.3.0rc23 sets _msa_fields_ready on
+        # success) and, for a pure generation batch, the graph-safe decode
+        # plans (:442-460 — absent plans mean sparse_metadata_params never
+        # reached the metadata and decode would silently take the eager
+        # prefill path instead of serving's planned one).
+        if not getattr(attn_metadata, "_msa_fields_ready", False):
+            raise RuntimeError(
+                "MiniMaxM3MsaSparseAttentionMetadata.prepare() did not build "
+                "the MSA cache-write buffers (msa_backend.py:549-609@1.3.0rc23); "
+                "the KV cache manager is not the M3 sparse manager"
+            )
+        if not is_context and attn_metadata.msa_decode_proxy_plan is None:
+            raise RuntimeError(
+                "MSA decode plans were not built for a pure generation batch "
+                "(msa_backend.py:428-460@1.3.0rc23); sparse_metadata_params "
+                "did not reach the metadata"
+            )
+        kernel_source = "msa_fmha_sm100"
+    else:
+        # Triton contract (rc19/rc20; rc23 implementation="triton"):
+        # prepare() attaches the prebuilt runtime metadata dict
+        # (metadata.py:899-902@1.3.0rc20; triton_metadata.py:860-864@1.3.0rc23).
+        if getattr(attn_metadata, "minimax_m3", None) is None:
+            raise RuntimeError(
+                "MiniMaxM3AttentionMetadata.prepare() did not build the minimax_m3 "
+                "attachment; the KV cache manager is not the M3 sparse manager"
+            )
+        # Keep the label the H20 rc20 dataset already carries for this path.
+        kernel_source = "default"
 
-    return kv_cache_manager, attn_metadata
+    return kv_cache_manager, attn_metadata, kernel_source
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -666,7 +807,7 @@ def run_msa_module(
         device=device,
     )
 
-    kv_cache_manager, attn_metadata = create_kv_cache_and_metadata(
+    kv_cache_manager, attn_metadata, kernel_source = create_kv_cache_and_metadata(
         model_config=model_config,
         batch_size=batch_size,
         seq_len=seq_len,
@@ -674,6 +815,20 @@ def run_msa_module(
         prefix_len=prefix_len,
         device=device,
     )
+
+    # Cross-check: the metadata contract validated above must match the
+    # backend instance the layer actually dispatches to — the model layer
+    # branches on isinstance(self.attn, MiniMaxM3MsaSparseAttention)
+    # (modeling_minimaxm3.py:1130-1147@1.3.0rc23). A mismatch would benchmark
+    # one path against the other's metadata and mislabel kernel_source.
+    layer_backend_name = type(getattr(attn_module, "attn", None)).__name__
+    layer_is_msa = layer_backend_name == "MiniMaxM3MsaSparseAttention"
+    if layer_is_msa != (kernel_source == "msa_fmha_sm100"):
+        _cleanup(kv_cache_manager)
+        raise RuntimeError(
+            f"metadata contract ({kernel_source}) does not match the layer's "
+            f"attention backend ({layer_backend_name})"
+        )
 
     hidden_size = model_config.pretrained_config.hidden_size
     if is_context:
@@ -720,6 +875,17 @@ def run_msa_module(
     def kernel_func():
         attn_module.forward(position_ids, hidden_states, attn_metadata)
 
+    # Measurement mode mirrors serving's execution mode per backend/phase.
+    # MSA prefill runs eagerly in serving — decode plans are cleared for
+    # prefill/mixed batches (msa_backend.py:434-436@1.3.0rc23) and the
+    # indexer then plans fmha_sm100 inline with host-side work
+    # (msa_indexer.py:149-191@1.3.0rc23), which is CUDA-graph-capture
+    # unsafe — so MSA context is measured eagerly. MSA decode replays the
+    # prebuilt graph-stable plans (built for capture) and keeps graph-mode
+    # measurement, as does the Triton path for both phases (unchanged from
+    # the H20 rc20 collection).
+    use_cuda_graph = not (kernel_source == "msa_fmha_sm100" and is_context)
+
     with benchmark_with_power(
         device=torch_device,
         kernel_func=kernel_func,
@@ -727,6 +893,7 @@ def run_msa_module(
         num_runs=test_ite,
         repeat_n=1,
         allow_graph_fail=False,
+        use_cuda_graph=use_cuda_graph,
     ) as results:
         pass
 
@@ -761,14 +928,15 @@ def run_msa_module(
         version=tensorrt_llm.__version__,
         device_name=torch.cuda.get_device_name(device),
         op_name=op_name,
-        kernel_source="default",
+        kernel_source=kernel_source,
         perf_filename=perf_filename,
         power_stats=results["power_stats"],
     )
 
     print(
         f"  [{phase}] b={batch_size}, s={seq_len}, heads={num_heads}, "
-        f"prefix={prefix_len}, gemm={gemm_type}: {latency:.4f} ms"
+        f"prefix={prefix_len}, gemm={gemm_type}, backend={kernel_source}: "
+        f"{latency:.4f} ms"
     )
 
     _cleanup(kv_cache_manager)
