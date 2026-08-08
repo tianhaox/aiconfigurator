@@ -611,7 +611,14 @@ def create_kv_cache_and_metadata(
 
     head_dim = int(getattr(config, "head_dim", config.hidden_size // config.num_attention_heads))
     num_kv_heads = int(config.num_key_value_heads)
-    tokens_per_block = 32
+    # Serving forces the KV page size per implementation: 128 for "msa"
+    # (the fmha_sm100 SparseK2qCsrBuilderSm100 asserts blk_kv == 128), 32
+    # for the Triton reference (py_executor_creator.py:427@1.3.0rc23:
+    # `tokens_per_block = 128 if m3_sparse_config.implementation == "msa"
+    # else 32`; rc19/rc20 have no implementation field and use 32).
+    tokens_per_block = (
+        128 if getattr(model_config.sparse_attention_config, "implementation", "triton") == "msa" else 32
+    )
 
     prefix_len = int(prefix_len) if is_context else 0
 
