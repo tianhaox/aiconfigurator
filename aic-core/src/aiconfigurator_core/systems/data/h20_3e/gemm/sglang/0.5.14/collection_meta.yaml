@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# complete: 44/101010 failures (0.04%, classified).
+schema_version: 1
+provenance: collected
+runtime:
+  framework: sglang
+  version: 0.5.14
+tables:
+  gemm_perf:
+    collected_at: '2026-08-08'
+    rows: 100966
+    status: complete

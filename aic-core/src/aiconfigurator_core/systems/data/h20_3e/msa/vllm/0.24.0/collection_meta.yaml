@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# complete: ctx 3904/3904, gen 2938 collected (6 cases dropped by the sanctioned
+# generation-time memory filter, logged); 0 runtime failures.
+schema_version: 1
+provenance: collected
+runtime:
+  framework: vllm
+  version: 0.24.0
+tables:
+  msa_context_module_perf:
+    collected_at: '2026-08-07'
+    rows: 3904
+    status: complete
+  msa_generation_module_perf:
+    collected_at: '2026-08-07'
+    rows: 2938
+    status: complete

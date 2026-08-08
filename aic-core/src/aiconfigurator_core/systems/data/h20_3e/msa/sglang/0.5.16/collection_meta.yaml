@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# msa accepted complete 2026-08-08: 3 checkpoint group failures are each 374/378
+# inner shapes collected + a handful of genuine OOMs at >=0.5M-token-prefix shapes
+# (b=8 s=16384 prefix 524288/1000000) on 143GB H20-3e; rows from those groups are
+# present in the table. Classified in the campaign error log.
+schema_version: 1
+provenance: collected
+runtime:
+  framework: sglang
+  version: 0.5.16
+tables:
+  msa_context_module_perf:
+    collected_at: '2026-08-08'
+    rows: 27887
+    status: complete
+  msa_generation_module_perf:
+    collected_at: '2026-08-08'
+    rows: 1136
+    status: complete

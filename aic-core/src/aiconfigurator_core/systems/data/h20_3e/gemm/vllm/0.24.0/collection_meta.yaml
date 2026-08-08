@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# complete: 107225/107226; 1 OOM accepted (classified in campaign log).
+schema_version: 1
+provenance: collected
+runtime:
+  framework: vllm
+  version: 0.24.0
+tables:
+  gemm_perf:
+    collected_at: '2026-08-07'
+    rows: 107225
+    status: complete
