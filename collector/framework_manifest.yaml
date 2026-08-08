@@ -25,6 +25,14 @@ frameworks:
         version: "0.5.16"
         images:
           default: "lmsysorg/sglang@sha256:4b8a7542e00a4d82801d1276108438b024137c9a07f33215d03b04003e500f2b"
+      # MiniMax-M3 (minimax_m3.py + minimax_sparse_ops) landed in the official
+      # v0.5.16 release; the stock 0.5.14 default has no M3. Pin the official
+      # tag for the msa family only (NOT the kimi-k3 branch build above, which
+      # is a different container).
+      msa:
+        version: "0.5.16"
+        images:
+          default: "lmsysorg/sglang:v0.5.16@sha256:7b6a35df9839fd593a94a1eaee82d7777f472225d9f3ad1f8a2e0cb2bd1785d0"
   trtllm:
     source_repo: "https://github.com/NVIDIA/TensorRT-LLM.git"
     default:

@@ -133,4 +133,27 @@ REGISTRY: list[OpEntry] = [
         run_func="run_mla_module_worker",
         perf_filename=PerfFile.DSA_GENERATION_MODULE,
     ),
+    OpEntry(
+        op="msa_context_module",
+        module="collector.trtllm.collect_msa_module",
+        get_func="get_msa_context_module_test_cases",
+        run_func="run_msa_module_worker",
+        perf_filename=PerfFile.MSA_CONTEXT_MODULE,
+        # MiniMax-M3 MSA modules are hardware-validated on SM90 only
+        # (H20-3e, 1.3.0rc20). The backend is SM-agnostic Python+Triton
+        # (sparse/minimax_m3/kernels.py@1.3.0rc20) so other SMs are
+        # expected to work, but record the maturity gap until the
+        # Blackwell pass validates them (layer_permissions.md registry
+        # markers).
+        unverified_sms=(100, 103, 120, 121),
+    ),
+    OpEntry(
+        op="msa_generation_module",
+        module="collector.trtllm.collect_msa_module",
+        get_func="get_msa_generation_module_test_cases",
+        run_func="run_msa_module_worker",
+        perf_filename=PerfFile.MSA_GENERATION_MODULE,
+        # See msa_context_module marker rationale.
+        unverified_sms=(100, 103, 120, 121),
+    ),
 ]
