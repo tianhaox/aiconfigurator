@@ -39,6 +39,16 @@ frameworks:
       version: "1.3.0rc20"
       images:
         default: "nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc20@sha256:1532b38814b3faf2affdb5ef01ca91468685d314ffb7e8926a0567595355ed88"
+    families:
+      # MiniMax-M3: the true-sparse fmha_sm100 backend (implementation="msa",
+      # SM100/103-only) landed in rc23; rc20 has only the Triton reference
+      # path (measured identical-or-worse on SM90 at rc23, so the existing
+      # h20_3e msa data stays at rc20). Pin the msa family to rc23 for the
+      # Blackwell collection.
+      msa:
+        version: "1.3.0rc23"
+        images:
+          default: "nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc23@sha256:316b840a08a8174fc3f6b5716828bdfe1daaf629ee1ac2a8b7a22526d141a007"
   vllm:
     source_repo: "https://github.com/vllm-project/vllm.git"
     default:
