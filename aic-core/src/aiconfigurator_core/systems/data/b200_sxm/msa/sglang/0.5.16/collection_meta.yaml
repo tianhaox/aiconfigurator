@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# 8x B200 campaign via aic-auto-collector pipeline 61696301 (2026-08-08).
+# 8x B200 campaign via internal collection CI (2026-08-08).
 # kernel_source = sglang_minimax_*_triton_sparse: the official
 # lmsysorg/sglang:v0.5.16 image does NOT bundle the fmha_sm100 wheel
 # (import fails -> msa_available()=False), so the Triton sparse path IS

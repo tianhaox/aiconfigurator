@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# 8x B200 campaign via aic-auto-collector pipeline 61701329 (2026-08-08).
+# 8x B200 campaign via internal collection CI (2026-08-08).
 # kernel_source = msa_fmha_sm100: collected with implementation="msa"
 # (the SM100-family true-sparse path; serving DEFAULTS to the slower
 # "triton" reference unless the deployment sets the knob —

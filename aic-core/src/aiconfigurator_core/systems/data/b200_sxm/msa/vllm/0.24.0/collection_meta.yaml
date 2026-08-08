@@ -1,8 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# complete: zero failures across the full plan (8x B200 via aic-auto-collector
-# pipeline 61696299, 2026-08-08). kernel_source = MiniMaxM3SparseMSAImpl
+# complete: zero failures across the full plan (8x B200 via internal collection CI, 2026-08-08). kernel_source = MiniMaxM3SparseMSAImpl
 # (fmha_sm100 auto-dispatch on the SM100 family).
 schema_version: 1
 provenance: collected
