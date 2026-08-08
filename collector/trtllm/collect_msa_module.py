@@ -332,7 +332,7 @@ def create_msa_attention_layer(
     # DeepseekV32/GlmMoeDsa branch exists, model_config.py:617-647), so
     # build it here from the checkpoint's sparse dict — same field mapping
     # MiniMaxM3Attention.__init__ reads (modeling_minimaxm3.py:623-630).
-    sparse_attention_config = MiniMaxM3SparseAttentionConfig(
+    sparse_kwargs = dict(
         sparse_num_index_heads=int(sparse_cfg_dict.get("sparse_num_index_heads", 4)),
         sparse_index_dim=int(sparse_cfg_dict.get("sparse_index_dim", 128)),
         sparse_block_size=int(sparse_cfg_dict.get("sparse_block_size", 128)),
@@ -341,6 +341,16 @@ def create_msa_attention_layer(
         sparse_local_blocks=int(sparse_cfg_dict.get("sparse_local_block", 1)),
         sparse_disable_index_value=True,
     )
+    # 1.3.0rc23 added implementation: Literal["triton","msa"] (default
+    # "triton"; llm_args.py MiniMaxM3SparseAttentionConfig). The "msa"
+    # (fmha_sm100) kernels are the performance path on the SM100 family and
+    # hard-require it (sparse/minimax_m3/msa_availability.py:ensure_msa_available
+    # raises off SM100/103), so collect "msa" there and the Triton reference
+    # elsewhere. kernel_source records which one actually ran. Field-presence
+    # probe keeps rc19/rc20 (no such field, pydantic strict) working.
+    if "implementation" in getattr(MiniMaxM3SparseAttentionConfig, "model_fields", {}):
+        sparse_kwargs["implementation"] = "msa" if get_sm_version() in (100, 103) else "triton"
+    sparse_attention_config = MiniMaxM3SparseAttentionConfig(**sparse_kwargs)
 
     # NOTE: sparse_attention_config is intentionally NOT passed as a
     # from_pretrained kwarg. load_pretrained_config forwards every kwarg into
