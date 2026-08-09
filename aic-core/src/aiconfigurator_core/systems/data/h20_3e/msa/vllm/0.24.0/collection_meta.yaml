@@ -1,7 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# complete: ctx 3904/3904, gen 2938 collected (6 cases dropped by the sanctioned
+# 2026-08-09: fp8-KV combos appended via resume (bf16 rows byte-identical,
+# 0% drift verified). 2 gen OOMs accepted (b>=1024 x kv 32k fp8 giant shapes).
+# complete: ctx incl. fp8, gen incl. fp8; original bf16 campaign (6 cases dropped by the sanctioned
 # generation-time memory filter, logged); 0 runtime failures.
 schema_version: 1
 provenance: collected
@@ -11,9 +13,9 @@ runtime:
 tables:
   msa_context_module_perf:
     collected_at: '2026-08-07'
-    rows: 3904
+    rows: 7808
     status: complete
   msa_generation_module_perf:
     collected_at: '2026-08-07'
-    rows: 2938
+    rows: 5881
     status: complete
