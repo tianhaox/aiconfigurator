@@ -1,0 +1,22 @@
+# Rust
+target/
+Cargo.lock
+
+# maturin / wheels
+dist/
+*.whl
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Compiled Python extension (built via `maturin develop`)
+*.so
+*.pyd
+
+# Generated artifacts
+*.bin
+data/*.parquet
+!data/build_gemm_parquet.py
