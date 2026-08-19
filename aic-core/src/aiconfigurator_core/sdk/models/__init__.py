@@ -138,6 +138,7 @@ from aiconfigurator_core.sdk.models.nemotron_h import NemotronHModel
 from aiconfigurator_core.sdk.models.nemotron_nas import NemotronNas
 from aiconfigurator_core.sdk.models.qwen3vl import Qwen3VLModel, Qwen3VLMoEModel
 from aiconfigurator_core.sdk.models.qwen35 import Qwen35Model
+from aiconfigurator_core.sdk.models.recipe import RecipeGapError, RecipeModel, get_recipe_model
 
 __all__ = [
     "BaseModel",
@@ -154,6 +155,8 @@ __all__ = [
     "Qwen3VLMoEModel",
     "Qwen3VLModel",
     "Qwen35Model",
+    "RecipeGapError",
+    "RecipeModel",
     "SGLangEPMOEModel",
     "TrtllmWideEPDeepSeekModel",
     "TrtllmWideEPDeepSeekV32Model",
@@ -167,6 +170,7 @@ __all__ = [
     "check_is_moe",
     "get_model",
     "get_model_family",
+    "get_recipe_model",
     "mtp_scale_factor",
     "resolve_context_fmha_by_data",
     "resolve_dsv4_moe_arch",
