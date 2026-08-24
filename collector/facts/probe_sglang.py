@@ -87,10 +87,23 @@ def main() -> None:
             argv += ["--quantization", args.quantization]
         if args.override:
             argv += ["--json-model-override-args", args.override]
-        cli_parser = argparse.ArgumentParser()
+        class _RaisingParser(argparse.ArgumentParser):
+            # argparse error() sys.exit(2)s before the record is dumped; a
+            # generator-rendered arg this version REJECTS is a first-class
+            # fact (b200 sweep: --moe-runner-backend deepep_moe on 0.5.16)
+            def error(self, message):
+                raise ValueError(message)
+
+        cli_parser = _RaisingParser()
         ServerArgs.add_cli_args(cli_parser)
-        ns, unknown = cli_parser.parse_known_args(argv)
         rec["engine_cli"] = args.engine_cli
+        try:
+            ns, unknown = cli_parser.parse_known_args(argv)
+        except ValueError as e:
+            rec["errors"]["engine_cli_parse"] = f"engine CLI rejected by ServerArgs parser: {e}"
+            with open(args.out, "w") as f:
+                json.dump(rec, f, indent=1, default=str)
+            return
         rec["engine_cli_unknown_args"] = unknown  # generator flags this version doesn't know = drift facts
         sa = ServerArgs.from_cli_args(ns)
     else:

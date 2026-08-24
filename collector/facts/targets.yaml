@@ -37,11 +37,6 @@ families:
       variant_overrides:
         vllm: interleave_pair
       cli_extra_args:
-        sglang:
-          args: &id001
-          - --generator-set
-          - params.agg.moe_backend=marlin
-          fact: 'fp4-experts on SM90: runner=auto crashes, marlin runs (facts/bisect_dsv4_native_marlin.json)'
         vllm:
           args:
           - --generator-set
@@ -56,9 +51,6 @@ families:
       profile: fp8
       aic_registered: deepseek-ai--DeepSeek-V4-Flash
       cli_extra_args:
-        sglang:
-          args: *id001
-          fact: 'fp4-experts on SM90: runner=auto crashes, marlin runs (facts/bisect_dsv4_native_marlin.json)'
         vllm:
           args:
           - --generator-set
@@ -75,9 +67,6 @@ families:
       variant_overrides:
         vllm: interleave_pair
       cli_extra_args:
-        sglang:
-          args: *id001
-          fact: 'fp4-experts on SM90: runner=auto crashes, marlin runs (facts/bisect_dsv4_native_marlin.json)'
         vllm:
           args:
           - --generator-set
@@ -92,9 +81,6 @@ families:
       profile: nvfp4
       aic_registered: false
       cli_extra_args:
-        sglang:
-          args: *id001
-          fact: 'fp4-experts on SM90: runner=auto crashes, marlin runs (facts/bisect_dsv4_native_marlin.json)'
         vllm:
           args:
           - --generator-set
@@ -214,9 +200,6 @@ families:
         variant_overrides:
           vllm: rep_mix
         cli_extra_args:
-          sglang:
-            args: *id001
-            fact: 'fp4-experts on SM90: runner=auto crashes, marlin runs (facts/bisect_dsv4_native_marlin.json)'
           vllm:
             args: &id002
             - --generator-set
@@ -233,9 +216,6 @@ families:
         variant_overrides:
           vllm: interleave_pair
         cli_extra_args:
-          sglang:
-            args: *id001
-            fact: 'fp4-experts on SM90: runner=auto crashes, marlin runs (facts/bisect_dsv4_native_marlin.json)'
           vllm:
             args: *id002
             fact: vllm DeepseekV4 fp8_ds_mla REQUIRES fp8 KV (attention.py:79; golden-auto crash 2026-08-23)
@@ -301,12 +281,12 @@ topology_policy:
     reason: 'owner request 2026-08-24: K3 must be probed on the deepep a2a route (independent kernel path); other
       models are represented by tp1 per the invariance fact.'
 platform:
-  name: h20_sm90
-  sm: 90
-  system: h200_sxm
+  name: b200_sm100
+  sm: 100
+  system: b200_sxm
   facts_systems:
-  - h100_sxm
-  - h200_sxm
+  - b200_sxm
+  - gb200
 tooling:
   vllm_probe_base_image: vllm/vllm-openai:v0.24.0
   note: 'aiconfigurator-core wheel version is READ FROM aic/pyproject.toml (the checkout declares it); only probe-specific

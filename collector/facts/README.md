@@ -50,8 +50,13 @@ Rule 6 (2026-08-23, from the DSV4 false positive): when a framework probes WEIGH
 ## Usage
 
 ```bash
+# 0. host-side inputs (config originals + tokenizer/custom-code assets —
+#    previously a by-hand step; probes crash at load without the assets)
+AIC_PROBE_WORKSPACE=<ws> python3 collector/facts/fetch_assets.py --configs
+
 # 1. dummy models (fetch configs once; AIC model_configs/ are reused when present)
-python3 collector/facts/gen_dummy_models.py --configs <cfg_dir> --out <ws>/dummy_models
+python3 collector/facts/gen_dummy_models.py --configs <ws>/configs --out <ws>/dummy_models
+AIC_PROBE_WORKSPACE=<ws> python3 collector/facts/fetch_assets.py --assets
 
 # 2. plan + queues (renders engine args from this repo's generator)
 AIC_PROBE_WORKSPACE=<ws> python3 collector/facts/gen_facts.py --emit-queues --backends sglang,vllm,trtllm
@@ -60,6 +65,10 @@ bash <ws>/archive/queues/gpu0.sh   # ... one per GPU; done-guard makes reruns in
 # 3. collect + curate
 AIC_PROBE_WORKSPACE=<ws> python3 collector/facts/gen_facts.py --records
 AIC_PROBE_WORKSPACE=<ws> python3 collector/facts/gen_facts.py --matrix
+
+# 4. standalone HTML report (matrix + cross-SM identity diff), committed
+#    next to the result yamls so reviewers can open it directly
+python3 collector/facts/gen_report.py --sm sm100 --diff-sm sm90
 ```
 
 A full three-backend sweep of the 76-checkpoint roster is ~226 runs, minutes

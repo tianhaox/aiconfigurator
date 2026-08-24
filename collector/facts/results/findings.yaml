@@ -3,6 +3,37 @@
 # dates inline; applies_to lists where it was observed. Rots with
 # framework releases — re-verify on version bumps. Inputs live in targets.yaml.
 findings:
+  sm100_sglang_deepep_moe:
+    statement: 'GENERATOR GAP (b200 sweep 2026-08-24): the b200/gb200 hardware profile (generator/facts/hardware.yaml:109
+      moe_backend.sglang=deepep_moe) renders --moe-runner-backend deepep_moe for EVERY MoE deployment, but sglang
+      0.5.16''s ServerArgs parser rejects it (invalid choice — valid set is auto/deep_gemm/triton/.../cutlass/marlin;
+      deepep is an --moe-a2a-backend concern in this version). Plain `cli generate` sglang MoE deployments on b200
+      therefore CANNOT BOOT: 70/95 roster checkpoints fail at argparse, dense models pass (25). probe_sglang now
+      records parser rejections as structured engine_cli_parse errors instead of dying before dump. Generator-side
+      fix is a generator-module task (hardware.yaml + version matrix), not done here.'
+    applies_to:
+    - platform:sm100
+  sm100_trtllm_wideep_dp:
+    statement: 'GENERATOR GAP (b200 sweep 2026-08-24): the b200 hardware profile sets moe_backend.trtllm=WIDEEP;
+      the rendered agg config does not enable attention DP, and trtllm 1.3.0rc23 asserts ''Attention DP should be
+      used with WideEP'' at boot — 61/95 roster checkpoints (every MoE) fail on tp1. Two sub-variants: ''bias not
+      supported in WideEPMoE'' (Qwen1.5-MoE, Mixtral-class with bias) once WideEP binds. The WIDEEP selection is
+      documented in generator/facts/apply.py:104 as a Blackwell STARTUP-CRASH avoidance — on tp1/ep1 it produces
+      the opposite. vllm (whose MoE backend comes from model defaults, not this hardware fact) passes 89/95 on the
+      same renders.'
+    applies_to:
+    - platform:sm100
+  sm100_vllm_residuals:
+    statement: 'b200 sweep 2026-08-24, vllm 0.24.0 residual fails (6/95): Llama-4 Scout/Maverick vision-tower shape
+      mismatch under dummy profiling (tensor 577 vs 1025 — dummy-methodology suspect, not a serving fact; needs
+      a vision-config-faithful dummy before blaming the framework); Kimi-K3 (+NVFP4) arch not registered at 0.24.0;
+      Gemma-4 NVFP4 tied-embedding quant NotImplementedError (artifact quantizes lm_head that vllm ties to embeddings).
+      NVFP4 MoE identity vs SM90: DSV4-NVFP4 and Qwen3-235B-NVFP4 drop the Marlin bf16-dequant kernels on sm100
+      (ModelOptNvFp4FusedMoE without marlin under it — native fp4 path); MiniMax-M3-NVFP4 STILL routes ->marlin
+      on sm100, and its sparse attention impl moves Triton->MSAImpl. Full grid in results/sm100/vllm-0.24.0.yaml
+      + report.html diff view.'
+    applies_to:
+    - platform:sm100
   dummy_notes:
     statement: layer-kind period is FRAMEWORK-HARDCODED (sglang llama4.py:217 use_rope=(layer_id+1)%4!=0) with no
       config field -> _ARCH_IMPLICIT_PERIODS; aic-core config lacks vision_config -> merged from unsloth mirror
