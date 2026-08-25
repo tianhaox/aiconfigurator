@@ -32,9 +32,28 @@ findings:
       Qwen3-*-FP8) aborts at first MoE forward with "This is the Cutlass backend with DeepGemm JIT path. For Blackwell
       (SM100+) support, please use the DEEPGEMM backend instead." NVFP4/bf16 MoE run fine on the same default. The
       generator needs a QUANT-CONDITIONAL moe_backend fact for sm100 trtllm (fp8-profile MoE -> DEEPGEMM) — the
-      current hardware.moe_backend surface is per-backend scalar and cannot express it; next generator increment.'
+      current hardware.moe_backend surface is per-backend scalar and cannot express it. FIXED 2026-08-25 (moe_backend_quant
+      fact + ModelConfig.quant_algo plumbing, commit 1d823d38): all 18 affected renders re-probed green; trtllm
+      matrix moves to 79 pass + 8 pass+custom / 8 fail, and the residual fails are per-model framework gaps (M3
+      sparse-config pydantic, MiMo arch unregistered, Kimi quant parser).'
     applies_to:
     - platform:sm100
+  sm100_sglang_dsv4_root_cause:
+    statement: 'ROOT CAUSE + partial workaround for sm100_sglang_dsv4_device_assert (b200 A/B 2026-08-25): the
+      blanket load-time crash is sglang 0.5.16''s fp8 wo_a GEMM optimization — post_load_weights -> _setup_fp8_wo_a_scales
+      (deepseek_v4.py:2577) calls deep_gemm transform_sf_into_required_layout under DEEPGEMM_SCALE_UE8M0 (sm100-only
+      branch) and the kernel dies with CUDA_ERROR_LAUNCH_FAILED (smxx_layout.hpp:72). Runner choice is irrelevant
+      (all six runners crash identically at load). SGLANG_ENABLE_JIT_DEEPGEMM=0 is NOT an escape (sglang NameError:
+      deep_gemm referenced while disabled — a second 0.5.16 bug). Verified workaround: env SGLANG_OPT_FP8_WO_A_GEMM=0
+      -> NVFP4 and converted-FP8 artifacts (4/8) run fully green under runner auto; NATIVE fp8 artifacts (fp4-packed
+      experts, 4/8) then hit a second wall with NO working runner: triton=hidden-size mismatch, marlin="MXFP4 Marlin
+      requires SM90 or SM120", flashinfer_cutlass=Fp8MoEMethod missing .runner, flashinfer_trtllm_routed=dtype
+      check (expects e4m3, gets packed fp4). Evidence facts ab/dsv4*_nowoa_*.json. The workaround is an ENV VAR,
+      which no current generator fact surface renders (model defaults emit backend_args only) — env support in
+      model defaults is the follow-up increment; until then DSV4-on-sglang-sm100 stays fail in the matrix with
+      this citation.'
+    applies_to:
+    - family:dsv4
   sm100_sglang_nvfp4_flashinfer_cutlass:
     statement: 'b200 re-sweep 2026-08-24, sglang 0.5.16: NVFP4 MoE under runner auto resolves FLASHINFER_TRTLLM
       on three checkpoints (MiniMax-M2.5/M2.7-NVFP4, Qwen3.6-35B-A3B-NVFP4), which modelopt_quant.py:2621 rejects
