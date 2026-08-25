@@ -107,6 +107,18 @@ profiles:
       # Source: cli/main.py _sglang_moe_backend_override and
       # cli/exps/deepseek_disagg_sglang.yaml.
       sglang: deepep_moe
+    # Quant-conditional MoE backend (applies when the checkpoint's inferred
+    # quant_algo matches a key; more specific than moe_backend, same
+    # fill-if-absent precedence). Source: b200 probe sweep 2026-08-25
+    # (collector/facts results/findings.yaml sm100_trtllm_fp8moe_deepgemm) —
+    # trtllm 1.3.0rc23 aborts every FP8-MoE checkpoint under default CUTLASS
+    # with "This is the Cutlass backend with DeepGemm JIT path. For Blackwell
+    # (SM100+) support, please use the DEEPGEMM backend instead"; the same
+    # models run with moe_config.backend: DEEPGEMM (A/B facts/ab/r1_deepgemm).
+    moe_backend_quant:
+      trtllm:
+        fp8: DEEPGEMM
+        fp8_block: DEEPGEMM
 
   # ---------------------------------------------------------------------------
   # GB200 NVL72  —  Blackwell  sm100,  arm64 Grace-Blackwell
@@ -160,6 +172,12 @@ profiles:
       # Source: cli/main.py _sglang_moe_backend_override and
       # cli/exps/deepseek_disagg_sglang.yaml.
       sglang: deepep_moe
+    # Same sm100 silicon as b200 — see the b200 entry's probe citation
+    # (findings.yaml sm100_trtllm_fp8moe_deepgemm).
+    moe_backend_quant:
+      trtllm:
+        fp8: DEEPGEMM
+        fp8_block: DEEPGEMM
 
   # ---------------------------------------------------------------------------
   # Intel Arc Pro B60  —  XPU

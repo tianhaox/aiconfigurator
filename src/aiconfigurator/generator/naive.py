@@ -224,6 +224,9 @@ def _estimate_model_weight_bytes(model_path: str, *, model_metadata: dict[str, A
             model_metadata.update(
                 architecture=config.get("architecture", ""),
                 is_moe=bool(num_experts and num_experts > 1),
+                # inferred by _attach_inferred_quant_fields during config load;
+                # consumed by the hardware moe_backend_quant fact (apply.py)
+                quant_algo=raw_config.get("quant_algo"),
             )
 
         return weight_bytes
@@ -264,6 +267,7 @@ def _estimate_model_weight_bytes(model_path: str, *, model_metadata: dict[str, A
                 model_metadata.update(
                     architecture=architecture,
                     is_moe=bool(num_experts and num_experts > 1),
+                    quant_algo=raw_config.get("quant_algo"),
                 )
             return weight_bytes
         except Exception as fallback_error:
@@ -471,6 +475,7 @@ def build_naive_generator_params(
     # Detect model architecture for MoE-aware parallelization
     architecture = str(model_metadata.get("architecture", ""))
     is_moe = bool(model_metadata.get("is_moe", False))
+    quant_algo = model_metadata.get("quant_algo")
     if not model_metadata:
         # The frozen config wins when provided; otherwise preserve the
         # test/mocking seam for callers that replace the weight estimator
@@ -480,6 +485,7 @@ def build_naive_generator_params(
             architecture = detected.get("architecture", "")
             num_experts = detected.get("num_experts", 0)
             is_moe = bool(num_experts and num_experts > 1)
+            quant_algo = (detected.get("raw_config") or {}).get("quant_algo")
         except Exception:
             logger.warning(
                 "Could not detect model architecture for %s; assuming dense (TP-only).",
@@ -549,6 +555,10 @@ def build_naive_generator_params(
         "fits_in_memory": fits,
         "required_tp": required_tp,
     }
+    # Only set when known — keeps the unquantized/legacy render byte-identical
+    # and lets the hardware moe_backend_quant fact (apply.py) condition on it.
+    if quant_algo:
+        model_config["quant_algo"] = quant_algo
     # Shared MSA prescription (see utils.msa_sparse_implementation): the
     # naive entry point must emit the same MiniMax-M3/SM100-family
     # sparse-attention implementation as the optimized path — otherwise a

@@ -134,6 +134,10 @@ def apply_moe_backend(context: dict[str, Any], hardware: dict[str, Any] | None, 
     else falls through to the framework default (trtllm builder -> CUTLASS,
     sglang -> runner auto-selection).
 
+    A sibling ``moe_backend_quant`` entry maps backend -> {quant_algo -> choice}
+    and, when the checkpoint's inferred ``quant_algo`` (ModelConfig) matches,
+    wins over the generic choice — e.g. sm100 trtllm FP8-MoE -> DEEPGEMM.
+
     Precedence: facts-default (fill-if-absent) — a user/recipe/rule value already
     in ``context`` always wins. Guarded to MoE deployments only via
     ``context["is_moe"]``; dense models are left untouched.
@@ -148,6 +152,16 @@ def apply_moe_backend(context: dict[str, Any], hardware: dict[str, Any] | None, 
       by :func:`apply_model_default_args`), not this hardware fact.
     """
     choice = ((hardware or {}).get("moe_backend") or {}).get(backend)
+    # quant-conditional fact wins over the generic one (more specific): keyed
+    # on the checkpoint's inferred quant_algo (ModelConfig, set by naive.py).
+    # sm100 origin: trtllm FP8-MoE needs DEEPGEMM (findings.yaml
+    # sm100_trtllm_fp8moe_deepgemm); CUTLASS default aborts at first forward.
+    qmap = ((hardware or {}).get("moe_backend_quant") or {}).get(backend) or {}
+    model_cfg = context.get("ModelConfig")
+    quant_algo = model_cfg.get("quant_algo") if isinstance(model_cfg, dict) else None
+    qchoice = qmap.get(str(quant_algo)) if quant_algo else None
+    if qchoice and not (qchoice in _WIDE_EP_ONLY_CHOICES and not _is_wide_ep_deployment(context)):
+        choice = qchoice
     if not choice:
         return
     # GUARD: hardware moe_backend applies to MoE deployments only.

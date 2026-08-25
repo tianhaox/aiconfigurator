@@ -58,3 +58,38 @@ def test_user_value_wins_over_fact() -> None:
     ctx["moe_config"] = {"backend": "TRTLLM"}
     apply_moe_backend(ctx, _B200_HW, backend="trtllm")
     assert ctx["moe_config"]["backend"] == "TRTLLM"
+
+
+_B200_HW_QUANT = {
+    "moe_backend": {"trtllm": "WIDEEP"},
+    "moe_backend_quant": {"trtllm": {"fp8": "DEEPGEMM", "fp8_block": "DEEPGEMM"}},
+}
+
+
+def test_quant_conditional_choice_applies_on_tp1() -> None:
+    ctx = _ctx(agg_params={"moe_expert_parallel_size": 1})
+    ctx["ModelConfig"] = {"quant_algo": "fp8_block"}
+    apply_moe_backend(ctx, _B200_HW_QUANT, backend="trtllm")
+    assert ctx["moe_config"]["backend"] == "DEEPGEMM"
+
+
+def test_quant_conditional_wins_over_generic_on_wide_ep() -> None:
+    ctx = _ctx(agg_params={"enable_attention_dp": True})
+    ctx["ModelConfig"] = {"quant_algo": "fp8"}
+    apply_moe_backend(ctx, _B200_HW_QUANT, backend="trtllm")
+    assert ctx["moe_config"]["backend"] == "DEEPGEMM"
+
+
+def test_unmatched_quant_falls_back_to_generic_gating() -> None:
+    ctx = _ctx(agg_params={"moe_expert_parallel_size": 1})
+    ctx["ModelConfig"] = {"quant_algo": "nvfp4"}
+    apply_moe_backend(ctx, _B200_HW_QUANT, backend="trtllm")
+    assert "moe_config" not in ctx  # WIDEEP still gated off tp1
+
+
+def test_quant_conditional_user_value_still_wins() -> None:
+    ctx = _ctx(agg_params={"moe_expert_parallel_size": 1})
+    ctx["ModelConfig"] = {"quant_algo": "fp8"}
+    ctx["moe_config"] = {"backend": "CUTLASS"}
+    apply_moe_backend(ctx, _B200_HW_QUANT, backend="trtllm")
+    assert ctx["moe_config"]["backend"] == "CUTLASS"
