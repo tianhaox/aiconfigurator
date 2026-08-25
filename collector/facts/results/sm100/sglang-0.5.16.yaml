@@ -4,40 +4,46 @@ _meta:
   version: 0.5.16
   verdicts: pass = plain `cli generate` output boots+runs; pass+custom = boots with facts-derived extra generate args; fail = root-caused (see results/findings.yaml)
   summary:
-    pass: 25
-    pass+custom: 0
-    fail: 70
+    pass: 80
+    pass+custom: 3
+    fail: 12
 results:
   MiniMaxAI/MiniMax-M2:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Fp8MoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   MiniMaxAI/MiniMax-M2.5:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Fp8MoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   MiniMaxAI/MiniMax-M2.7:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Fp8MoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   MiniMaxAI/MiniMax-M3:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: MiniMaxHybridAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   MiniMaxAI/MiniMax-M3-MXFP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: MiniMaxHybridAttnBackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen1.5-MoE-A2.7B:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-0.6B:
     verdict: pass
     attention: TRTLLMHAAttnBackend
@@ -49,30 +55,35 @@ results:
     kv_allocated: auto
     topology: tp1
   Qwen/Qwen3-235B-A22B:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-235B-A22B-FP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-235B-A22B-Instruct-2507:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-30B-A3B:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-30B-A3B-FP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-32B:
     verdict: pass
     attention: TRTLLMHAAttnBackend
@@ -94,25 +105,28 @@ results:
     kv_allocated: auto
     topology: tp1
   Qwen/Qwen3-Coder-480B-A35B-Instruct:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-VL-235B-A22B-Instruct:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-VL-2B-Instruct:
     verdict: pass
     attention: TRTLLMHAAttnBackend
     kv_allocated: auto
     topology: tp1
   Qwen/Qwen3-VL-30B-A3B-Instruct:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3-VL-32B-Instruct:
     verdict: pass
     attention: TRTLLMHAAttnBackend
@@ -139,10 +153,11 @@ results:
     kv_allocated: auto
     topology: tp1
   Qwen/Qwen3.5-122B-A10B:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3.5-27B:
     verdict: pass
     attention: HybridLinearAttnBackend
@@ -156,13 +171,13 @@ results:
   Qwen/Qwen3.5-35B-A3B:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: 'RuntimeError: Error in function ''run'' at /workspace/csrc/fused_moe/trtllm_backend/trtllm_fused_moe_dev_kernel.cu:985: Got CUDA error. See above for details.'
   Qwen/Qwen3.5-397B-A17B:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   Qwen/Qwen3.5-4B:
     verdict: pass
     attention: HybridLinearAttnBackend
@@ -181,58 +196,59 @@ results:
   XiaomiMiMo/MiMo-V2-Flash:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: 'RuntimeError: shape ''[-1, 64, 4, 192]'' is invalid for input of size 8421376'
   deepseek-ai/DeepSeek-R1:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
   deepseek-ai/DeepSeek-V3:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
   deepseek-ai/DeepSeek-V3.2:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: Fp8MoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   deepseek-ai/DeepSeek-V4-Flash:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   deepseek-ai/DeepSeek-V4-Flash-0731:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   deepseek-ai/DeepSeek-V4-Pro:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   deepseek-ai/DeepSeek-V4-Pro-0813:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   google/gemma-4-26B-A4B:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   meta-llama/Llama-4-Maverick-17B-128E-Instruct:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   meta-llama/Llama-4-Scout-17B-16E-Instruct:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   meta-llama/Meta-Llama-3.1-405B:
     verdict: pass
     attention: TRTLLMHAAttnBackend
@@ -249,95 +265,106 @@ results:
     kv_allocated: auto
     topology: tp1
   mistralai/Mixtral-8x22B-v0.1:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   mistralai/Mixtral-8x7B-v0.1:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   moonshotai/Kimi-K2-Instruct:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
   moonshotai/Kimi-K2.5:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: CompressedTensorsFusedMoE
+    kv_allocated: auto
+    topology: tp1
   moonshotai/Kimi-K3:
     verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    cause: arch not registered
+    error: 'ValueError: Cannot find model module. ''KimiK3ForConditionalGeneration'' is not a registered model in the Transformers library and loading the custom model from auto_map failed. The remote model
+      code ma'
   nvidia/DeepSeek-V3.1-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/DeepSeek-V3.2-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   nvidia/DeepSeek-V4-Flash-NVFP4:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   nvidia/DeepSeek-V4-Pro-NVFP4:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   nvidia/GLM-5-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   nvidia/GLM-5.1-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   nvidia/GLM-5.2-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   nvidia/Gemma-4-26B-A4B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/Gemma-4-31B-IT-NVFP4:
     verdict: pass
     attention: TRTLLMHAAttnBackend
     kv_allocated: auto
     topology: tp1
   nvidia/Kimi-K2.5-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/Kimi-K2.6-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/Kimi-K2.7-Code-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/Kimi-K3-NVFP4:
     verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    cause: arch not registered
+    error: 'ValueError: Cannot find model module. ''KimiK3ForConditionalGeneration'' is not a registered model in the Transformers library and loading the custom model from auto_map failed. The remote model
+      code ma'
   nvidia/Llama-3.1-70B-Instruct-FP8:
     verdict: pass
     attention: TRTLLMHAAttnBackend
@@ -349,137 +376,161 @@ results:
     kv_allocated: auto
     topology: tp1
   nvidia/MiniMax-M2.5-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass+custom
+    extra_args: --generator-set params.agg.moe_backend=flashinfer_cutlass
+    attention: TRTLLMHAAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/MiniMax-M2.7-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass+custom
+    extra_args: --generator-set params.agg.moe_backend=flashinfer_cutlass
+    attention: TRTLLMHAAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/MiniMax-M3-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: MiniMaxHybridAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptFp8MoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-FP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptNvFp4FusedMoE->marlin
+    kv_allocated: auto
+    topology: tp1
   nvidia/Nemotron-H-56B-Base-8K:
     verdict: pass
     attention: HybridLinearAttnBackend
     kv_allocated: auto
     topology: tp1
   nvidia/Qwen3-235B-A22B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/Qwen3.5-122B-A10B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/Qwen3.5-397B-A17B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
   nvidia/Qwen3.6-27B-NVFP4:
     verdict: pass
     attention: HybridLinearAttnBackend
     kv_allocated: auto
     topology: tp1
   nvidia/Qwen3.6-35B-A3B-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass+custom
+    extra_args: --generator-set params.agg.moe_backend=flashinfer_cutlass
+    attention: HybridLinearAttnBackend
+    moe: ModelOptNvFp4FusedMoE->marlin
+    kv_allocated: auto
+    topology: tp1
   openai/gpt-oss-120b:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Mxfp4MoE
+    kv_allocated: auto
+    topology: tp1
   openai/gpt-oss-20b:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Mxfp4MoE
+    kv_allocated: auto
+    topology: tp1
   sgl-project/DeepSeek-V4-Flash-FP8:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   sgl-project/DeepSeek-V4-Pro-FP8:
     verdict: fail
     cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
   zai-org/GLM-5:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   zai-org/GLM-5-FP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: Fp8MoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   zai-org/GLM-5.1:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   zai-org/GLM-5.1-FP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: Fp8MoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   zai-org/GLM-5.2:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   zai-org/GLM-5.2-FP8:
-    verdict: fail
-    cause: framework gap
-    error: 'engine CLI rejected by ServerArgs parser: argument --moe-runner-backend: invalid choice: ''deepep_moe'' (choose from ''auto'', ''deep_gemm'', ''triton'', ''triton_kernel'', ''flashinfer_trtllm'',
-      ''experimental_sg'
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: Fp8MoE
+    kv_allocated: fp8_e4m3
+    topology: tp1

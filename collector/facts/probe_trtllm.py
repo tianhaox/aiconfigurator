@@ -138,7 +138,19 @@ def main() -> None:
     except Exception:
         _gen = types.ModuleType("cutlass._mlir.dialects._iket_ops_gen")
         _gen.__all__ = []
-        _gen.__getattr__ = lambda name: type(name, (object,), {"__init__": lambda self, *a, **k: None})
+        _gen.__file__ = "<cutlass-iket-stub>"
+
+        def _stub_getattr(name):
+            # dunders must raise (PEP 562): inspect walks sys.modules and
+            # getattr(module, '__file__')-style probes must see a real
+            # AttributeError, not a dummy class (sm100 cute-dsl runners DO
+            # execute through here — the b200 sweep hit inspect.getmodule
+            # crashing on a dummy '__file__' class before the real failure).
+            if name.startswith("__") and name.endswith("__"):
+                raise AttributeError(name)
+            return type(name, (object,), {"__init__": lambda self, *a, **k: None})
+
+        _gen.__getattr__ = _stub_getattr
         sys.modules["cutlass._mlir.dialects._iket_ops_gen"] = _gen
         rec["cutlass_stub_modules"] = ["cutlass._mlir.dialects._iket_ops_gen"]
     try:

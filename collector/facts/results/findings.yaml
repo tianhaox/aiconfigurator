@@ -9,8 +9,10 @@ findings:
       0.5.16''s ServerArgs parser rejects it (invalid choice — valid set is auto/deep_gemm/triton/.../cutlass/marlin;
       deepep is an --moe-a2a-backend concern in this version). Plain `cli generate` sglang MoE deployments on b200
       therefore CANNOT BOOT: 70/95 roster checkpoints fail at argparse, dense models pass (25). probe_sglang now
-      records parser rejections as structured engine_cli_parse errors instead of dying before dump. Generator-side
-      fix is a generator-module task (hardware.yaml + version matrix), not done here.'
+      records parser rejections as structured engine_cli_parse errors instead of dying before dump. FIXED 2026-08-24
+      (apply.py wide-EP gating, commit ec8035ac): re-sweep moves sglang to 80 pass + 3 pass+custom / 12 fail —
+      runner auto-selection now probed per checkpoint. Wide-EP sglang renders still emit deepep_moe (0.5.16 spells
+      it --moe-a2a-backend deepep) — version-matrix follow-up.'
     applies_to:
     - platform:sm100
   sm100_trtllm_wideep_dp:
@@ -20,9 +22,38 @@ findings:
       supported in WideEPMoE'' (Qwen1.5-MoE, Mixtral-class with bias) once WideEP binds. The WIDEEP selection is
       documented in generator/facts/apply.py:104 as a Blackwell STARTUP-CRASH avoidance — on tp1/ep1 it produces
       the opposite. vllm (whose MoE backend comes from model defaults, not this hardware fact) passes 89/95 on the
-      same renders.'
+      same renders. FIXED 2026-08-24 (apply.py wide-EP gating, commit ec8035ac): re-sweep moves trtllm to 67 pass
+      + 2 pass+custom / 26 fail; the residual cluster is sm100_trtllm_fp8moe_deepgemm.'
     applies_to:
     - platform:sm100
+  sm100_trtllm_fp8moe_deepgemm:
+    statement: 'b200 re-sweep 2026-08-24 (post wide-EP fix), trtllm 1.3.0rc23: with the framework-default CUTLASS
+      MoE backend, EVERY FP8-quantized MoE checkpoint (16/95: DeepSeek R1/V3/V3.2/V4-family FP8, Kimi-K2, GLM-5.x-FP8,
+      Qwen3-*-FP8) aborts at first MoE forward with "This is the Cutlass backend with DeepGemm JIT path. For Blackwell
+      (SM100+) support, please use the DEEPGEMM backend instead." NVFP4/bf16 MoE run fine on the same default. The
+      generator needs a QUANT-CONDITIONAL moe_backend fact for sm100 trtllm (fp8-profile MoE -> DEEPGEMM) — the
+      current hardware.moe_backend surface is per-backend scalar and cannot express it; next generator increment.'
+    applies_to:
+    - platform:sm100
+  sm100_sglang_nvfp4_flashinfer_cutlass:
+    statement: 'b200 re-sweep 2026-08-24, sglang 0.5.16: NVFP4 MoE under runner auto resolves FLASHINFER_TRTLLM
+      on three checkpoints (MiniMax-M2.5/M2.7-NVFP4, Qwen3.6-35B-A3B-NVFP4), which modelopt_quant.py:2621 rejects
+      ("Use --moe-runner-backend flashinfer_cutlass instead") — an auto-selection gap in sglang, since its own
+      error names the working choice. Pinned via targets.yaml cli_extra_args (now pass+custom, runner=FLASHINFER_CUTLASS
+      verified). Other NVFP4 MoE checkpoints resolve workable runners under auto.'
+    applies_to:
+    - nvidia/MiniMax-M2.5-NVFP4
+    - nvidia/MiniMax-M2.7-NVFP4
+    - nvidia/Qwen3.6-35B-A3B-NVFP4
+  sm100_sglang_dsv4_device_assert:
+    statement: 'b200 re-sweep 2026-08-24, sglang 0.5.16: ALL eight DSV4 artifacts (native fp8 x2, sgl-project FP8
+      x2, nvidia NVFP4 x2, base repos x2) crash at first forward with a CUDA device-side assert under runner auto
+      — the same checkpoints run on vllm/sm100 and on sglang/sm90 (with the marlin pin). Runner-choice bisect not
+      yet done on sm100 (the sm90 fact "auto crashes, marlin runs" does not transfer: marlin is the bf16-dequant
+      fallback sm100 should not need). Needs a dedicated bisect; until then DSV4-on-sglang-sm100 is unservable
+      out of the box.'
+    applies_to:
+    - family:dsv4
   sm100_vllm_residuals:
     statement: 'b200 sweep 2026-08-24, vllm 0.24.0 residual fails (6/95): Llama-4 Scout/Maverick vision-tower shape
       mismatch under dummy profiling (tensor 577 vs 1025 — dummy-methodology suspect, not a serving fact; needs

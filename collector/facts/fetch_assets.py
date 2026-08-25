@@ -68,7 +68,12 @@ def list_files(repo: str) -> set[str] | None:
 def fetch_configs() -> None:
     cfg = WS / "configs"
     cfg.mkdir(parents=True, exist_ok=True)
-    aic_mc = HERE.parent.parent / "aic-core/src/aiconfigurator_core/model_configs"
+    # repo checkout layout (collector/facts/ -> repo root) or workspace layout
+    # (<ws>/probe/ -> <ws>/aic checkout)
+    aic_mc = next((p for p in (
+        HERE.parent.parent / "aic-core/src/aiconfigurator_core/model_configs",
+        WS / "aic/aic-core/src/aiconfigurator_core/model_configs",
+    ) if p.is_dir()), HERE.parent.parent / "aic-core/src/aiconfigurator_core/model_configs")
     roster = HERE / "configs" / "repos.txt"
     repos = [ln.split()[0] for ln in roster.read_text().splitlines()
              if ln.strip() and not ln.startswith("#")]
