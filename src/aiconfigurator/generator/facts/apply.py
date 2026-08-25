@@ -96,14 +96,43 @@ def apply_model_default_args(
             tokens.append(_stringify(value))
 
 
+#: hardware ``moe_backend`` choices that are only valid on wide-EP deployments
+#: (attention DP / EP>1). Probed on B200 2026-08-24 (collector/facts sm100 sweep):
+#: trtllm 1.3.0rc23 asserts "Attention DP should be used with WideEP" at boot when
+#: WIDEEP is selected on a tp1/ep1 render, and sglang 0.5.16's ServerArgs parser
+#: rejects ``--moe-runner-backend deepep_moe`` outright (its deepep spelling is
+#: ``--moe-a2a-backend deepep``, a wide-EP-only path). See
+#: collector/facts/results/findings.yaml sm100_sglang_deepep_moe / sm100_trtllm_wideep_dp.
+_WIDE_EP_ONLY_CHOICES = frozenset({"WIDEEP", "deepep_moe"})
+
+
+def _is_wide_ep_deployment(context: dict[str, Any]) -> bool:
+    """A deployment is wide-EP when any role enables attention DP or EP>1."""
+    for role in ("prefill", "decode", "agg", "encode"):
+        rp = context.get(f"{role}_params")
+        if not isinstance(rp, dict):
+            continue
+        if rp.get("enable_attention_dp"):
+            return True
+        try:
+            if int(rp.get("moe_expert_parallel_size") or 1) > 1:
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
+
+
 def apply_moe_backend(context: dict[str, Any], hardware: dict[str, Any] | None, *, backend: str) -> None:
     """Apply the hardware-derived ``moe_backend`` selection (fill-if-absent, MoE-only).
 
     ``hardware`` is the resolved hardware-profile dict (``ResolvedFacts.hardware``).
     Its ``moe_backend`` entry maps backend -> kernel/runner choice, e.g.
-    ``{"trtllm": "WIDEEP", "sglang": "deepep_moe"}``. Selecting the wrong trtllm
-    MoE backend on Blackwell is a STARTUP CRASH, so this fills the correct value
-    when nothing has set it yet.
+    ``{"trtllm": "WIDEEP", "sglang": "deepep_moe"}``. These are the right choices
+    for the wide-EP serving shape the Blackwell profiles were written for — and
+    STARTUP CRASHES outside it (see ``_WIDE_EP_ONLY_CHOICES``), so wide-EP-only
+    choices are applied only when the deployment actually is wide-EP; everything
+    else falls through to the framework default (trtllm builder -> CUTLASS,
+    sglang -> runner auto-selection).
 
     Precedence: facts-default (fill-if-absent) — a user/recipe/rule value already
     in ``context`` always wins. Guarded to MoE deployments only via
@@ -123,6 +152,10 @@ def apply_moe_backend(context: dict[str, Any], hardware: dict[str, Any] | None, 
         return
     # GUARD: hardware moe_backend applies to MoE deployments only.
     if not context.get("is_moe"):
+        return
+    # GUARD: wide-EP-only choices apply only to wide-EP deployments (attention
+    # DP / EP>1); on tp1-class renders they are boot failures, not defaults.
+    if choice in _WIDE_EP_ONLY_CHOICES and not _is_wide_ep_deployment(context):
         return
     if backend == "trtllm":
         moe = context.setdefault("moe_config", {})
