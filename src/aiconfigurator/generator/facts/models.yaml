@@ -14,6 +14,9 @@ models:
       model_paths:
         - deepseek-ai/DeepSeek-V4*
         - sgl-project/DeepSeek-V4*
+        # nvidia NVFP4 re-quant artifacts of the same architecture (b200 probe
+        # roster 2026-08-25); without this they missed every DSV4 default/env fact.
+        - nvidia/DeepSeek-V4*
       architectures:
         - DeepseekV4ForCausalLM
       model_types:
