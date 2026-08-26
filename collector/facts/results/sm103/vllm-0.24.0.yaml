@@ -1,0 +1,127 @@
+_meta:
+  platform: b300_sm103
+  framework: vllm
+  version: 0.24.0
+  verdicts: pass = plain `cli generate` output boots+runs; pass+custom = boots with facts-derived extra generate args; fail = root-caused (see results/findings.yaml)
+  summary:
+    pass: 15
+    pass+custom: 3
+    fail: 2
+results:
+  MiniMaxAI/MiniMax-M3:
+    verdict: pass
+    attention: MiniMaxM3SparseMSAImpl
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
+  MiniMaxAI/MiniMax-M3-MXFP8:
+    verdict: pass
+    attention: MiniMaxM3SparseMSAImpl
+    moe: ModelOptMxFp8FusedMoE
+    kv_allocated: auto
+    topology: tp1
+  Qwen/Qwen3-30B-A3B:
+    verdict: pass
+    attention: Qwen3MoeAttention
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
+  Qwen/Qwen3-30B-A3B-FP8:
+    verdict: pass
+    attention: Qwen3MoeAttention
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
+  Qwen/Qwen3-8B:
+    verdict: pass
+    attention: Qwen3Attention
+    kv_allocated: auto
+    topology: tp1
+  XiaomiMiMo/MiMo-V2-Flash:
+    verdict: pass
+    attention: MiMoV2Attention
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
+  deepseek-ai/DeepSeek-R1:
+    verdict: pass
+    attention: DeepseekV2MLAAttention
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
+  deepseek-ai/DeepSeek-V4-Pro-0813:
+    verdict: pass+custom
+    extra_args: --generator-set params.agg.kv_cache_dtype=fp8
+    attention: DeepseekV4FlashMLAAttention
+    moe: Mxfp4MoE
+    kv_allocated: fp8
+    topology: tp1
+  meta-llama/Meta-Llama-3.1-8B:
+    verdict: pass
+    attention: LlamaAttention
+    kv_allocated: auto
+    topology: tp1
+  moonshotai/Kimi-K3:
+    verdict: fail
+    cause: arch not registered
+    error: '    For further information visit https://errors.pydantic.dev/2.13/v/value_error'
+  nvidia/DeepSeek-V4-Pro-NVFP4:
+    verdict: pass+custom
+    extra_args: --generator-set params.agg.kv_cache_dtype=fp8
+    attention: DeepseekV4FlashMLAAttention
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8
+    topology: tp1
+  nvidia/GLM-5.2-NVFP4:
+    verdict: pass
+    attention: RMSNorm
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
+  nvidia/Kimi-K3-NVFP4:
+    verdict: fail
+    cause: arch not registered
+    error: '    For further information visit https://errors.pydantic.dev/2.13/v/value_error'
+  nvidia/MiniMax-M2.5-NVFP4:
+    verdict: pass
+    attention: MiniMaxM2Attention
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
+  nvidia/MiniMax-M3-NVFP4:
+    verdict: pass
+    attention: MiniMaxM3SparseMSAImpl
+    moe: ModelOptNvFp4FusedMoE->marlin
+    kv_allocated: auto
+    topology: tp1
+  nvidia/Qwen3-235B-A22B-NVFP4:
+    verdict: pass
+    attention: Qwen3MoeAttention
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
+  openai/gpt-oss-20b:
+    verdict: pass
+    attention: OAIAttention
+    moe: GptOssMxfp4MoE
+    kv_allocated: auto
+    topology: tp1
+  sgl-project/DeepSeek-V4-Pro-FP8:
+    verdict: pass+custom
+    extra_args: --generator-set params.agg.kv_cache_dtype=fp8
+    attention: DeepseekV4FlashMLAAttention
+    moe: Mxfp4MoE
+    kv_allocated: fp8
+    topology: tp1
+  zai-org/GLM-5.2:
+    verdict: pass
+    attention: RMSNorm
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
+  zai-org/GLM-5.2-FP8:
+    verdict: pass
+    attention: RMSNorm
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1

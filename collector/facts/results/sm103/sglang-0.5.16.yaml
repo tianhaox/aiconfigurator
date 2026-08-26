@@ -1,0 +1,123 @@
+_meta:
+  platform: b300_sm103
+  framework: sglang
+  version: 0.5.16
+  verdicts: pass = plain `cli generate` output boots+runs; pass+custom = boots with facts-derived extra generate args; fail = root-caused (see results/findings.yaml)
+  summary:
+    pass: 15
+    pass+custom: 1
+    fail: 4
+results:
+  MiniMaxAI/MiniMax-M3:
+    verdict: pass
+    attention: MiniMaxHybridAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
+  MiniMaxAI/MiniMax-M3-MXFP8:
+    verdict: pass
+    attention: MiniMaxHybridAttnBackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
+  Qwen/Qwen3-30B-A3B:
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: auto
+    topology: tp1
+  Qwen/Qwen3-30B-A3B-FP8:
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
+  Qwen/Qwen3-8B:
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    kv_allocated: auto
+    topology: tp1
+  XiaomiMiMo/MiMo-V2-Flash:
+    verdict: fail
+    cause: framework gap
+    error: 'RuntimeError: shape ''[-1, 64, 4, 192]'' is invalid for input of size 8421376'
+  deepseek-ai/DeepSeek-R1:
+    verdict: pass
+    attention: TRTLLMMLABackend
+    moe: Fp8MoE
+    kv_allocated: auto
+    topology: tp1
+  deepseek-ai/DeepSeek-V4-Pro-0813:
+    verdict: fail
+    cause: framework gap
+    error: 'AssertionError: Hidden size mismatch'
+  meta-llama/Meta-Llama-3.1-8B:
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    kv_allocated: auto
+    topology: tp1
+  moonshotai/Kimi-K3:
+    verdict: fail
+    cause: arch not registered
+    error: 'ValueError: Cannot find model module. ''KimiK3ForConditionalGeneration'' is not a registered model in the Transformers library and loading the custom model from auto_map failed. The remote model
+      code ma'
+  nvidia/DeepSeek-V4-Pro-NVFP4:
+    verdict: pass
+    attention: DeepseekV4AttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
+  nvidia/GLM-5.2-NVFP4:
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
+  nvidia/Kimi-K3-NVFP4:
+    verdict: fail
+    cause: arch not registered
+    error: 'ValueError: Cannot find model module. ''KimiK3ForConditionalGeneration'' is not a registered model in the Transformers library and loading the custom model from auto_map failed. The remote model
+      code ma'
+  nvidia/MiniMax-M2.5-NVFP4:
+    verdict: pass+custom
+    extra_args: --generator-set params.agg.moe_backend=flashinfer_cutlass
+    attention: TRTLLMHAAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
+  nvidia/MiniMax-M3-NVFP4:
+    verdict: pass
+    attention: MiniMaxHybridAttnBackend
+    moe: UnquantizedFusedMoE->triton_fused_moe
+    kv_allocated: auto
+    topology: tp1
+  nvidia/Qwen3-235B-A22B-NVFP4:
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: auto
+    topology: tp1
+  openai/gpt-oss-20b:
+    verdict: pass
+    attention: TRTLLMHAAttnBackend
+    moe: Mxfp4MoE
+    kv_allocated: auto
+    topology: tp1
+  sgl-project/DeepSeek-V4-Pro-FP8:
+    verdict: pass
+    attention: DeepseekV4AttnBackend
+    moe: Fp8MoE->triton_fused_moe
+    kv_allocated: fp8_e4m3
+    topology: tp1
+  zai-org/GLM-5.2:
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: UnquantizedFusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
+  zai-org/GLM-5.2-FP8:
+    verdict: pass
+    attention: DeepseekSparseAttnBackend
+    moe: Fp8MoE
+    kv_allocated: fp8_e4m3
+    topology: tp1

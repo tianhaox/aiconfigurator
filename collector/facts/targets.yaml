@@ -295,12 +295,11 @@ topology_policy:
     reason: 'owner request 2026-08-24: K3 must be probed on the deepep a2a route (independent kernel path); other
       models are represented by tp1 per the invariance fact.'
 platform:
-  name: b200_sm100
-  sm: 100
-  system: b200_sxm
+  name: b300_sm103
+  sm: 103
+  system: b300_sxm
   facts_systems:
-  - b200_sxm
-  - gb200
+  - b300_sxm
 tooling:
   vllm_probe_base_image: vllm/vllm-openai:v0.24.0
   note: 'aiconfigurator-core wheel version is READ FROM aic/pyproject.toml (the checkout declares it); only probe-specific

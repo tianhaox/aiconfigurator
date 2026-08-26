@@ -3,6 +3,26 @@
 # dates inline; applies_to lists where it was observed. Rots with
 # framework releases — re-verify on version bumps. Inputs live in targets.yaml.
 findings:
+  sm103_watchlist_campaign:
+    statement: 'b300 (sm103, 4x B300 SXM6, compute_cap 10.3) watchlist campaign 2026-08-26: a 20-checkpoint x
+      3-backend subset (60 runs; DSV4 all three quant artifact classes, FP8/NVFP4/MXFP4/bf16 MoE representatives,
+      dense controls, K3, MiMo) probed with generator-rendered b300_sxm configs — results/sm103/ holds ONLY this
+      subset (deliberate; the un-probed roster is not represented, no synthetic fails). Verdicts: sglang 16/20,
+      vllm 18/20, trtllm 14/20 boot from plain generate; EVERY failure matches its sm100 counterpart exactly (K3
+      arch/quant-parser, M3 sparse-config pydantic, MiMo shape, DSV4 native fp4-packed runner gap) — no sm103-specific
+      regression surfaced in this subset. Both sm100-derived generator facts VALIDATED on sm103 via the shared
+      b200 hardware profile: trtllm fp8-MoE DEEPGEMM renders run (R1, GLM-5.2-FP8, Qwen3-30B-FP8 green), and the
+      DSV4 sglang env fact is NEEDED here too — A/B without SGLANG_OPT_FP8_WO_A_GEMM=0 crashes at load in the GENERIC
+      fp8 ue8m0 requant chain (requant_block_scale_ue8m0_for_deepgemm -> per_block_cast_to_fp8, ab/dsv4_sm103_noenv.json)
+      — the same chain 0.5.18 crashes in on sm100, unifying the root cause: DSV4''s grouped wo_a weight geometry
+      fed to the ue8m0 requant/cast kernels fails across sm100/sm103 and 0.5.16/0.5.18; removing wo_a from the
+      fp8 path (the env) sidesteps it on both. Identity delta vs sm100: trtllm attention re-dispatches to sm103a
+      kernel builds (fmhaSm100f/Sm100a* -> fmhaSm103a*, 8 checkpoints — trtllm-gen ships per-SM cubins and floors
+      correctly); sglang/vllm kernel identities unchanged. K3''s SM103-gated MegaMoE path (topology_sm103) remains
+      UNANSWERED — K3 fails at arch registration before any MoE path activates, on all three backends at these
+      pins.'
+    applies_to:
+    - platform:sm103
   sm100_sglang_deepep_moe:
     statement: 'GENERATOR GAP (b200 sweep 2026-08-24): the b200/gb200 hardware profile (generator/facts/hardware.yaml:109
       moe_backend.sglang=deepep_moe) renders --moe-runner-backend deepep_moe for EVERY MoE deployment, but sglang
