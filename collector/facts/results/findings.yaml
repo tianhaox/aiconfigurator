@@ -51,7 +51,20 @@ findings:
       check (expects e4m3, gets packed fp4). Evidence facts ab/dsv4*_nowoa_*.json. The workaround is an ENV VAR,
       which no current generator fact surface renders (model defaults emit backend_args only) — env support in
       model defaults is the follow-up increment; until then DSV4-on-sglang-sm100 stays fail in the matrix with
-      this citation.'
+      this citation. RE-VERIFIED on sglang 0.5.18 (latest, 2026-08-25, live on B200): still broken — the crash
+      moved from the wo_a-specific transform into the GENERIC fp8 block-quant path (process_weights_after_loading_block_quant
+      -> requant_block_scale_ue8m0_for_deepgemm -> per_block_cast_to_fp8, same CUDA_ERROR_LAUNCH_FAILED), and it
+      is DSV4-SHAPE-SPECIFIC (GLM/Qwen FP8 checkpoints pass through the same requant on sm100). The env workaround
+      still works on 0.5.18 (NVFP4 + converted-FP8 green; evidence ab/dsv4*_0518_*.json). Workaround COST: load-time
+      _dequant_fp8_wo_a stores wo_a in bf16 — wo_a is ReplicatedLinear (not TP-sharded), DSV4-Pro o_groups=16 x
+      o_lora_rank=1024 x D~4096 x 61 layers ~= 4.1B params -> ~+4 GB per GPU vs fp8 — and the wo_a einsum runs
+      as plain bf16 torch.einsum instead of DeepGEMM fp8 (that one GEMM ~2x slower; numerically equal-or-better).
+      Upstream-report material for sglang. GENERATOR FIX 2026-08-25 (commit 50d316be): model-default facts gained
+      an env surface; the DSV4 profile now renders SGLANG_OPT_FP8_WO_A_GEMM=0 on b200/gb200 (run.sh # facts-env
+      exports + k8s worker env), and the nvidia/DeepSeek-V4* artifacts joined the profile match. Re-probe: NVFP4
+      (runner FLASHINFER_TRTLLM_ROUTED) and converted-FP8 (runner auto) artifacts now boot from plain generate
+      — sglang matrix 84 pass + 3 pass+custom / 8 fail. The 4 native fp4-packed artifacts remain unservable on
+      sglang/sm100 (no runner accepts the packed layout) — framework gap, not renderable around.'
     applies_to:
     - family:dsv4
   sm100_sglang_nvfp4_flashinfer_cutlass:

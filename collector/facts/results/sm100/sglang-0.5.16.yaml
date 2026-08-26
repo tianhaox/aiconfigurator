@@ -4,9 +4,9 @@ _meta:
   version: 0.5.16
   verdicts: pass = plain `cli generate` output boots+runs; pass+custom = boots with facts-derived extra generate args; fail = root-caused (see results/findings.yaml)
   summary:
-    pass: 80
+    pass: 84
     pass+custom: 3
-    fail: 12
+    fail: 8
 results:
   MiniMaxAI/MiniMax-M2:
     verdict: pass
@@ -218,19 +218,19 @@ results:
   deepseek-ai/DeepSeek-V4-Flash:
     verdict: fail
     cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    error: 'AssertionError: Hidden size mismatch'
   deepseek-ai/DeepSeek-V4-Flash-0731:
     verdict: fail
     cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    error: 'AssertionError: Hidden size mismatch'
   deepseek-ai/DeepSeek-V4-Pro:
     verdict: fail
     cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    error: 'AssertionError: Hidden size mismatch'
   deepseek-ai/DeepSeek-V4-Pro-0813:
     verdict: fail
     cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    error: 'AssertionError: Hidden size mismatch'
   google/gemma-4-26B-A4B:
     verdict: pass
     attention: TRTLLMHAAttnBackend
@@ -306,13 +306,17 @@ results:
     kv_allocated: fp8_e4m3
     topology: tp1
   nvidia/DeepSeek-V4-Flash-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    verdict: pass
+    attention: DeepseekV4AttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   nvidia/DeepSeek-V4-Pro-NVFP4:
-    verdict: fail
-    cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    verdict: pass
+    attention: DeepseekV4AttnBackend
+    moe: ModelOptNvFp4FusedMoE
+    kv_allocated: fp8_e4m3
+    topology: tp1
   nvidia/GLM-5-NVFP4:
     verdict: pass
     attention: DeepseekSparseAttnBackend
@@ -491,13 +495,17 @@ results:
     kv_allocated: auto
     topology: tp1
   sgl-project/DeepSeek-V4-Flash-FP8:
-    verdict: fail
-    cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    verdict: pass
+    attention: DeepseekV4AttnBackend
+    moe: Fp8MoE->triton_fused_moe
+    kv_allocated: fp8_e4m3
+    topology: tp1
   sgl-project/DeepSeek-V4-Pro-FP8:
-    verdict: fail
-    cause: framework gap
-    error: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+    verdict: pass
+    attention: DeepseekV4AttnBackend
+    moe: Fp8MoE->triton_fused_moe
+    kv_allocated: fp8_e4m3
+    topology: tp1
   zai-org/GLM-5:
     verdict: pass
     attention: DeepseekSparseAttnBackend
