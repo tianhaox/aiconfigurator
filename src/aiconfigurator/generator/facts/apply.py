@@ -191,6 +191,31 @@ def _system_key(facts: ResolvedFacts) -> str | None:
     return getattr(facts, "hardware_key", None)
 
 
+def collect_model_default_env(
+    model: dict[str, Any] | None,
+    *,
+    backend: str,
+    system: str | None,
+    variant: str | None,
+) -> dict[str, str]:
+    """Merge matched ``defaults`` entries' ``env:`` maps (worker environment).
+
+    Some facts are only expressible as environment variables (origin: sglang's
+    ``SGLANG_OPT_FP8_WO_A_GEMM=0`` — the verified DSV4/sm100 load-crash
+    workaround, findings.yaml sm100_sglang_dsv4_root_cause — has no CLI flag).
+    Entries merge in declaration order; later entries win on key conflicts.
+    Env applies to the whole worker process, so ``roles`` filters are ignored
+    here — scope env facts with ``match`` (backend/system/variant) instead.
+    """
+    merged: dict[str, str] = {}
+    for entry in (model or {}).get("defaults", []) or []:
+        if not _entry_matches(entry.get("match", {}) or {}, backend=backend, system=system, variant=variant):
+            continue
+        for name, value in (entry.get("env", {}) or {}).items():
+            merged[str(name)] = _stringify(value)
+    return merged
+
+
 def apply_facts(context: dict[str, Any], facts: ResolvedFacts | None, backend: str) -> None:
     """Apply model-default cli args onto every role's token list in ``context``.
 
@@ -198,6 +223,11 @@ def apply_facts(context: dict[str, Any], facts: ResolvedFacts | None, backend: s
     ``{role}_cli_args_list`` lists in place; callers re-sync the cli string
     artifacts from those lists so both the ``cli_args_*`` string and the typed
     k8s builder see identical appended flags.
+
+    Matched ``env:`` defaults land in ``context["facts_env_exports"]`` as
+    ``export K=V  # facts-env`` lines, rendered by the run.sh templates next to
+    the kvbm exports (the ``# facts-env`` marker lets consumers — e.g. the
+    facts probe harness — recover exactly the facts-injected environment).
     """
     if facts is None or facts.model is None:
         return
@@ -217,3 +247,8 @@ def apply_facts(context: dict[str, Any], facts: ResolvedFacts | None, backend: s
             role=role,
             variant=variant,
         )
+    env = collect_model_default_env(facts.model, backend=backend, system=system, variant=variant)
+    if env:
+        # structured form for the typed k8s builder; export lines for run.sh
+        context["facts_env"] = env
+        context["facts_env_exports"] = [f"export {k}={v}  # facts-env" for k, v in env.items()]

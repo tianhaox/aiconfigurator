@@ -262,6 +262,14 @@ def _populate_vllm(context: dict[str, Any], resolved_facts: Any = None) -> list[
                 continue
             out.append({"name": k, "value": str(v)})
             seen.add(k)
+        # model-default env facts (models.yaml defaults `env:`) — same values
+        # the run.sh path renders as `# facts-env` exports; hardware/transport
+        # env wins on key conflicts.
+        for k, v in (context.get("facts_env") or {}).items():
+            if k in seen:
+                continue
+            out.append({"name": k, "value": str(v)})
+            seen.add(k)
         return out or None
 
     def worker_shared_memory(role: str | None) -> dict[str, str] | None:
@@ -565,6 +573,14 @@ def _populate_sglang(context: dict[str, Any], resolved_facts: Any = None) -> lis
             seen.add(k)
         tr_env = tr_facts.get("env") if isinstance(tr_facts, dict) else None
         for k, v in (tr_env or {}).items():
+            if k in seen:
+                continue
+            out.append({"name": k, "value": str(v)})
+            seen.add(k)
+        # model-default env facts (models.yaml defaults `env:`) — same values
+        # the run.sh path renders as `# facts-env` exports; hardware/transport
+        # env wins on key conflicts.
+        for k, v in (context.get("facts_env") or {}).items():
             if k in seen:
                 continue
             out.append({"name": k, "value": str(v)})
@@ -893,6 +909,14 @@ def _populate_trtllm(context: dict[str, Any], resolved_facts: Any = None) -> lis
             seen.add(k)
         tr_env = tr_facts.get("env") if isinstance(tr_facts, dict) else None
         for k, v in (tr_env or {}).items():
+            if k in seen:
+                continue
+            out.append({"name": k, "value": str(v)})
+            seen.add(k)
+        # model-default env facts (models.yaml defaults `env:`) — same values
+        # the run.sh path renders as `# facts-env` exports; hardware/transport
+        # env wins on key conflicts.
+        for k, v in (context.get("facts_env") or {}).items():
             if k in seen:
                 continue
             out.append({"name": k, "value": str(v)})

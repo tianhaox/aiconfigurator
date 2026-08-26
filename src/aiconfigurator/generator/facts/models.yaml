@@ -60,6 +60,20 @@ models:
         backend_args:
           trust-remote-code: true
           disable-flashinfer-autotune: true
+      # Provenance: b200 probe A/B 2026-08-25 (collector/facts
+      # results/findings.yaml sm100_sglang_dsv4_root_cause): sglang 0.5.16 AND
+      # 0.5.18 crash at weight load on sm100 for every DSV4 artifact — the
+      # DeepGEMM ue8m0 requant path dies with CUDA_ERROR_LAUNCH_FAILED, and
+      # runner choice is irrelevant. Disabling the fp8 wo_a GEMM optimization
+      # is the only working knob (verified green for NVFP4 and converted-FP8
+      # artifacts; costs wo_a in bf16, ~+4 GB on Pro, one attention einsum in
+      # bf16). Re-verify on sglang version bumps — drop when upstream fixes it.
+      - match: {backend: sglang, system: b200}
+        env:
+          SGLANG_OPT_FP8_WO_A_GEMM: "0"
+      - match: {backend: sglang, system: gb200}
+        env:
+          SGLANG_OPT_FP8_WO_A_GEMM: "0"
     precision_variants:
       fp8:
         weight_dtype: fp8

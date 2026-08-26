@@ -47,6 +47,9 @@ for ((w=0; w<AGG_WORKERS; w++)); do
   {% for export_line in kvbm_env_exports | default([]) %}
   {{ export_line }}
   {% endfor %}
+  {% for export_line in facts_env_exports | default([]) %}
+  {{ export_line }}
+  {% endfor %}
   CUDA_VISIBLE_DEVICES=$GPU_LIST \
   OTEL_SERVICE_NAME="${WORKER_NAME}" \
   DYN_SYSTEM_PORT="${SYSTEM_PORT}" \
@@ -78,6 +81,9 @@ for ((w=0; w<PREFILL_WORKERS; w++)); do
   {% endif %}
   (
   {% for export_line in kvbm_env_exports | default([]) %}
+  {{ export_line }}
+  {% endfor %}
+  {% for export_line in facts_env_exports | default([]) %}
   {{ export_line }}
   {% endfor %}
   CUDA_VISIBLE_DEVICES=$GPU_LIST \

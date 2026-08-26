@@ -28,6 +28,9 @@ for ((w=0; w<AGG_WORKERS; w++)); do
     {% for export_line in kvbm_env_exports | default([]) %}
     {{ export_line }}
     {% endfor %}
+    {% for export_line in facts_env_exports | default([]) %}
+    {{ export_line }}
+    {% endfor %}
     CUDA_VISIBLE_DEVICES=$GPU_LIST python3 -m dynamo.trtllm \
     --model-path "$MODEL_PATH" \
     --served-model-name "$SERVED_MODEL_NAME" \
@@ -45,6 +48,9 @@ for ((w=0; w<PREFILL_WORKERS; w++)); do
   GPU_LIST=$(seq -s, $BASE $((BASE+PREFILL_GPU-1)))
   (
     {% for export_line in kvbm_env_exports | default([]) %}
+    {{ export_line }}
+    {% endfor %}
+    {% for export_line in facts_env_exports | default([]) %}
     {{ export_line }}
     {% endfor %}
     CUDA_VISIBLE_DEVICES=$GPU_LIST python3 -m dynamo.trtllm \
