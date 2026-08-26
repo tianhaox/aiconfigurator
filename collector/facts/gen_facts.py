@@ -281,7 +281,15 @@ def emit_queues(runs: list[dict], n_gpus: int, gpu_offset: int, plan_name: str) 
             run["engine_cli"] = cli
             run["engine_args_fidelity"] = "cli-golden"
             run["golden_dir"] = str(art)
-            cmd = (head + f"{run['image']} python3 {WORK}/probe/probe_sglang.py "
+            # facts-injected worker env (models.yaml defaults `env:`) renders in
+            # run.sh with a `# facts-env` marker — carry it into the probe
+            # container verbatim so the probe runs what a deployment would.
+            fenv = re.findall(r"^\s*export ([A-Za-z_][A-Za-z0-9_]*)=(\S+)\s+# facts-env$",
+                              (art / "run_0.sh").read_text(), re.M)
+            if fenv:
+                run["facts_env"] = {k: v for k, v in fenv}
+            env_flags = "".join(f"-e {k}={shlex.quote(v)} " for k, v in fenv)
+            cmd = (head + env_flags + f"{run['image']} python3 {WORK}/probe/probe_sglang.py "
                    f"--model {run['model_dir']} --engine-cli {shlex.quote(cli)} --trace "
                    f"--out {WORK}/archive/raw/{run['id']}.json 2>&1 | tail -1 ; }}")
         elif run["backend"] == "vllm":  # golden fpm run.sh, consumed verbatim
