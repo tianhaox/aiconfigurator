@@ -1,0 +1,36 @@
+# Stand alone from the repo-root workspace (which owns `rust/aiconfigurator-core`).
+# The PoC is intentionally isolated so its existence doesn't ripple into the
+# main crate's build.
+[workspace]
+
+[package]
+name = "aic_step"
+version = "0.0.1"
+edition = "2021"
+description = "Greenfield PoC: Rust core for AIC perf engine, Python + Rust callable"
+license = "Apache-2.0"
+
+[lib]
+name = "aic_step"
+# cdylib  → Python extension (.so / .pyd) via PyO3 / maturin
+# rlib    → reusable from other Rust crates (e.g. mocker_demo binary)
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "mocker_demo"
+path = "src/bin/mocker_demo.rs"
+
+[features]
+# pyo3 is gated behind this feature so the `mocker_demo` binary (which uses
+# the crate purely as a Rust lib) can be built with --no-default-features
+# to skip libpython linkage entirely.
+default = []
+python = ["dep:pyo3"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+arrow = "53"
+parquet = "53"
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+rayon = "1.10"

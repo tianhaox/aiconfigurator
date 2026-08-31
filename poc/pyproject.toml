@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "aic_step"
+version = "0.0.1"
+description = "Greenfield PoC: Python + Rust split for AIC perf engine"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "pyarrow>=15",
+    "pytest>=7",
+]
+
+[tool.maturin]
+# Mixed-mode layout: Rust extension under aic_step._native,
+# pure-Python helpers under python/aic_poc/.
+# Activate our `python` feature, which transitively brings pyo3 in with
+# extension-module.  Default features stay off so binaries (mocker_demo)
+# can build with --no-default-features and skip libpython linkage.
+features = ["python"]
+module-name = "aic_step._native"
+python-source = "python"
+manifest-path = "Cargo.toml"
