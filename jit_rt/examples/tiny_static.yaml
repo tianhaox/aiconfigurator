@@ -1,0 +1,31 @@
+name: tiny_static_reference
+
+target:
+  gpu: cpu_reference
+  sm:
+
+model:
+  family: llama_like_dense
+  vocab_size: 64
+  hidden_size: 32
+  num_layers: 2
+  num_heads: 4
+  intermediate_size: 64
+
+runtime:
+  backend: numpy_reference
+  dtype: float32
+  max_batch_size: 1
+  max_seq_len: 32
+  kv_layout: static_dense
+
+features:
+  batching: static
+  sampling: greedy
+  attention: dense_causal_single_token
+  pd_separation: false
+  tensor_parallel: false
+
+weights:
+  source: synthetic
+  seed: 7
