@@ -1,0 +1,309 @@
+# Forward Pass Metric Work-Local Modeling
+
+This document summarizes a lightweight modeling direction for Forward Pass
+Metric (FPM) latency prediction. The goal is to use a small set of measured
+prefill or decode forward-pass shapes and predict nearby shapes with bounded
+error, without introducing heavyweight ML models or module-level latency
+decomposition.
+
+## Scope
+
+The model is forward-pass level. It treats the measured FPM latency as the
+target and does not require attention/MoE/module split measurements. Kernel
+or module-specific formulas are intentionally out of scope for the default
+path.
+
+The intended inputs are shape-level FPM fields:
+
+- `batch_size = B`
+- `new_tokens = S` for prefill
+- `past_kv_tokens = P`
+
+For decode, each sequence contributes one new token, so `S = 1`.
+
+## Motivation
+
+Direct shape-space interpolation can work when the training grid is dense, but
+it treats `(B, S, P)` mostly as coordinates. That makes point compression and
+long-prefix generalization harder, because actual forward-pass cost is driven
+by simple work terms such as:
+
+- request or batch overhead
+- per-token work, roughly proportional to `B * S`
+- prefix context work, roughly proportional to `B * S * P`
+- prefill self-context work, roughly proportional to `B * S^2`
+
+The proposed model first maps raw shapes into a small forward-pass work feature
+space, then fits a local affine latency model around the query.
+
+## Work Features
+
+For prefill:
+
+```text
+N = B * S
+W_prefix = B * S * P
+W_self = B * S * (S + 1) / 2
+
+T ~= a + b * B + c * N + d * W_prefix + e * W_self
+```
+
+`N` captures shape terms whose cost scales with scheduled tokens. `W_prefix`
+and `W_self` capture context-dependent work without depending on any specific
+attention kernel implementation.
+
+For decode:
+
+```text
+N = B
+W_context = B * (P + 1)
+
+T ~= a + b * B + c * W_context
+```
+
+These equations are not expected to be globally accurate over the whole shape
+space. They are used as local basis functions.
+
+## Predictor
+
+The recommended prediction order is:
+
+1. Exact FPM database hit.
+   Return the measured latency when the exact shape exists.
+
+2. Work-local affine model.
+   Normalize a small local key space, find nearby training points, and solve a
+   small weighted ridge regression in the work feature space. This keeps the
+   model simple and makes the fitted slopes local to the current regime.
+
+3. Optional SOL boundary-efficiency extrapolation.
+   This path is disabled by default and should only run when the query is
+   outside the measured boundary on selected dimensions. If a speed-of-light
+   latency estimate is available, freeze the boundary efficiency:
+
+   ```text
+   efficiency_boundary = T_sol(boundary) / T_actual(boundary)
+   T_pred(query) = T_sol(query) / efficiency_boundary
+
+   equivalently:
+   T_pred(query) = T_actual(boundary) * T_sol(query) / T_sol(boundary)
+   ```
+
+   This is an extrapolation rule, not a lower-bound cap on the work-local
+   prediction. Interpolation continues to use the work-local model. The current
+   script exposes it through:
+
+   ```text
+   --sol-boundary-cache <csv-with-key-sol_latency_ms>
+   --sol-boundary-dimensions <dimension-list>
+   ```
+
+   By default, only the selected trigger dimensions are allowed to be outside
+   the measured primary shape boundary. For example, `new_tokens` extrapolation
+   will not fire if `past_kv_tokens` is also outside the training range. The
+   script has an explicit `--sol-boundary-allow-mixed-extrapolation` flag for
+   experiments that need multi-dimensional extrapolation.
+
+   In the static AIC experiment, enabling it for `new_tokens` extrapolation
+   helped high-`S` tails. Enabling it directly for `past_kv_tokens` with the
+   current SOL formula overpredicted long-prefix cases, because measured FPM
+   latency was already saturated while the SOL estimate continued to grow with
+   prefix length. Long-prefix extrapolation should therefore either keep high-P
+   boundary measurements or use a prefix-saturated SOL model.
+
+4. Debug fallback.
+   Shape-space IDW or nearest-neighbor interpolation may be kept as a baseline
+   or fallback, but it is not the preferred main model.
+
+## Algorithm Details
+
+The work-local predictor uses the measured train set directly; there is no
+offline ML training step beyond storing normalized features.
+
+For each query shape:
+
+```text
+1. Build local-neighbor coordinates from shape-level log features.
+2. Find the k nearest measured FPM points in that local space.
+3. If the query exactly matches measured points, return their measured latency.
+4. Compute inverse-distance weights over the k neighbors.
+5. Solve a tiny weighted ridge regression:
+
+   y_neighbor ~= work_features_neighbor @ coef
+
+6. Predict:
+
+   T_work_local = work_features_query @ coef
+
+7. Clip only to a broad observed-latency range to avoid negative or explosive
+   numerical results.
+```
+
+The optional SOL boundary path wraps the base predictor. It only replaces the
+base prediction for extrapolation points that satisfy the configured trigger
+rules:
+
+```text
+1. Compute T_work_local first.
+2. Compute boundary dimensions for the train set and query.
+   Prefill dimensions:
+     batch_size, new_tokens, past_kv_tokens, total_context_tokens,
+     sum_prefill_tokens, batch_total_context_tokens
+   Decode dimensions:
+     batch_size, past_kv_tokens, attention_work_tokens
+3. Check whether any configured trigger dimension is outside the train
+   boundary. If not, return T_work_local.
+4. Unless mixed extrapolation is explicitly enabled, require non-trigger
+   primary dimensions to remain inside the train boundary.
+   Primary dimensions are:
+     prefill: batch_size, new_tokens, past_kv_tokens
+     decode: batch_size, past_kv_tokens
+5. Project the query onto the measured boundary by clipping the violated
+   trigger dimensions to the train min/max boundary and recomputing derived
+   dimensions.
+6. Select the measured boundary row nearest to the projected query in normalized
+   log boundary-coordinate space.
+7. If SOL is missing for the query or boundary row, return T_work_local.
+8. Otherwise freeze boundary efficiency:
+
+   T_pred = T_actual(boundary) * T_sol(query) / T_sol(boundary)
+```
+
+This makes the SOL path cheap: it adds a boundary nearest-neighbor scan and two
+SOL-cache lookups only for points that are outside the selected measured
+boundary.
+
+## Why Not Global Affine
+
+A single global affine fit is too coarse. Experiments showed that global
+work-space regression can have reasonable average error in some models but is
+not stable enough across regimes.
+
+The robust version is local:
+
+```text
+shape -> work features -> local neighborhood -> local affine fit
+```
+
+The model remains cheap. For a few hundred to a few thousand training points,
+query cost is dominated by a nearest-neighbor scan plus a tiny least-squares
+solve.
+
+## Prefill Sampling Candidate
+
+A safe compressed prefill train grid used in experiments contains 773 points.
+It is generated from:
+
+```text
+B in {1, 2, 4, 8, 32}
+
+S in {
+  1, 2, 4, 8, 16,
+  64, 256, 1024, 4096, 16384, 65536
+}
+```
+
+For each `(B, S)`, prefix candidates are generated from:
+
+```text
+0
+absolute anchors: 1, 4, 16, 64, 256, 1024, 4096, 16384, 65536, 131072
+ratio anchors: S, 3S, 7S, 15S, 31S
+boundary anchor: 262144 - S
+```
+
+Then invalid shapes are filtered by:
+
+```text
+S + P <= 262144
+B * S <= 262144
+B * (S + P) <= 1048576
+```
+
+This plan intentionally keeps prefix coverage while removing many intermediate
+batch and sequence anchors. More aggressive plans around 649 points also worked
+in the current synthetic/static experiment, but the 773-point plan has a wider
+tail-error margin.
+
+## Experimental Summary
+
+The current study reused static AIC latency as ground truth and compared the
+work-local model with direct shape-space IDW on the same train/validation/test
+splits. Tested prefill datasets included:
+
+- Qwen3-235B
+- Qwen3-32B
+- DeepSeek-V3
+- Llama3.1-8B
+
+Across these datasets, work-local reduced test MAPE and tail error versus the
+shape-space baseline. With full prefill train grids, test MAPE improved from
+roughly `4.8%-6.2%` to roughly `2.2%-3.8%` depending on the model.
+
+The compressed 773-point plan kept worst validation/test errors within the
+target range in the current experiment:
+
+```text
+worst MAPE: 5.21%
+worst P95: 12.18%
+worst P99: 23.05%
+worst Max: 29.63%
+```
+
+Pure collection latency, computed as the sum of training-point `latency_ms`, was
+also reduced. Compared with previous compressed shape-space plans:
+
+```text
+new 773 vs old 2051: about 72%-73% collection-latency reduction
+new 773 vs old 1809: about 68%-70% collection-latency reduction
+new 773 vs old 1908 prefix-sparse plan: about 59%-60% reduction
+```
+
+These numbers exclude model load, collector startup, warmup, and repeated
+measurements. Those overheads should be accounted for separately in a real FPM
+collector, but the ratios are useful for comparing train shape plans.
+
+See `docs/fpm_work_local_experiment_results.md` for the detailed result tables
+and reproduction commands.
+
+## Open Items
+
+- Validate against real Dynamo/vLLM FPM measurements instead of static AIC
+  latency.
+- Connect the optional SOL boundary-efficiency extrapolator to a production SOL
+  provider. Keep it disabled by default until real FPM data confirms which
+  dimensions are safe to trigger.
+- Tune local-neighborhood selection by regime. Very short prefill and decode
+  batch/KV boundary regions are the most sensitive.
+- Extend the same work-local framework to mixed-shape batches by summing the
+  corresponding work features across scheduled requests.
+- Keep module-level decomposition out of the default model unless a separate
+  collection path explicitly needs it.
+
+## Reference Scripts
+
+The research scripts under `fpm/` provide a small standalone harness for
+reproducing the shape-plan and model experiments. They intentionally do not
+include generated ground-truth CSV data.
+
+Generate the 773-point prefill train plan:
+
+```bash
+python fpm/prefill_sampling.py \
+  --output /tmp/fpm_prefill_plan_773.csv \
+  --val-count 0 \
+  --test-count 0 \
+  --batch-anchors 1,2,4,8,32 \
+  --new-token-anchors 1,2,4,8,16,64,256,1024,4096,16384,65536
+```
+
+Evaluate a ground-truth CSV with work-local:
+
+```bash
+python fpm/forward_pass_work_model.py \
+  --data fpm/data/prefill_ground_truth.csv \
+  --train-plan /tmp/fpm_prefill_plan_773.csv \
+  --eval-splits val,test \
+  --models work_local \
+  --local-neighbors 16
+```
