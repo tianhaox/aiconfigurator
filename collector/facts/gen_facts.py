@@ -413,8 +413,6 @@ def derive_profile(repo: str, configs_dir: Path) -> str:
 # records stage (merged from make_records.py): raw probe JSONs -> curated
 # records.jsonl — kernel normalization, taxonomy labeling, error compression
 
-ROOT = Path(__file__).resolve().parent.parent
-
 # kernels that are infrastructure, never op identity
 KERNEL_DENY = re.compile(
     r"Memcpy|Memset|Lazy Function Loading|Runtime Triggered Module Loading|"
